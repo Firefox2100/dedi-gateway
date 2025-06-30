@@ -1,3 +1,4 @@
+import logging
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -11,6 +12,10 @@ class ServiceConfig(BaseSettings):
     application_name: str = Field(
         'dedi-gateway',
         description='Name of the application'
+    )
+    logging_level: str = Field(
+        'INFO',
+        description='Logging level for the application'
     )
 
     ema_factor: float = Field(
@@ -50,3 +55,20 @@ class ServiceConfig(BaseSettings):
 
 
 SERVICE_CONFIG = ServiceConfig()        # type: ignore
+
+LOGGER = logging.getLogger(SERVICE_CONFIG.application_name)
+LOGGER.setLevel(SERVICE_CONFIG.logging_level.upper())
+
+if not LOGGER.hasHandlers():
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(SERVICE_CONFIG.logging_level.upper())
+
+    formatter = logging.Formatter(
+        fmt='[%(asctime)s] [%(process)d] [%(levelname)s]: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S %z'
+    )
+    console_handler.setFormatter(formatter)
+
+    LOGGER.addHandler(console_handler)
+
+LOGGER.debug('Service configuration loaded: %s', SERVICE_CONFIG.model_dump_json(indent=2))

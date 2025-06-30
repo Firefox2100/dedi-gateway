@@ -25,3 +25,10 @@ class UserMappingType(Enum):
     NO_MAPPING = 'noMapping'
     STATIC = 'static'
     DYNAMIC = 'dynamic'
+
+
+class MessageType(Enum):
+    """
+    Types of messages passed in the network protocol
+    """
+    AUTH_REQUEST = 'authRequest'

@@ -34,7 +34,7 @@ class MemoryNetworkRepository(NetworkRepository):
         if registered is not None:
             networks = [n for n in networks if n.registered == registered]
 
-        return [Network.from_dict(n.to_dict()) for n in networks]
+        return [Network.from_dict(n) for n in networks]
 
     async def save(self, network: Network) -> None:
         if network.network_id in self.db:
