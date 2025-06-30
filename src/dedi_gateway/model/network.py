@@ -12,6 +12,8 @@ class Network(BaseModel):
                  description: str = '',
                  node_ids: list[str] | None = None,
                  visible: bool = False,
+                 centralised: bool = False,
+                 registered: bool = False,
                  instance_id: str = None,
                  ):
         """
@@ -25,6 +27,8 @@ class Network(BaseModel):
         :param description: A description of the network
         :param node_ids: The IDs of the nodes in the network
         :param visible: Whether the network is visible to others to apply for joining
+        :param centralised: Whether the network has a centralised node for permission and identity management
+        :param registered: Whether the network is registered in a public registry
         :param instance_id: The unique ID of the network instance
         """
         self.network_id = network_id

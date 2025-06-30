@@ -16,6 +16,10 @@ class ServiceConfig(BaseSettings):
         0.3,
         description='Exponential Moving Average factor for node scores',
     )
+    database_driver: str = Field(
+        'mongo',
+        description='Database driver to use for the service',
+    )
 
 
 SERVICE_CONFIG = ServiceConfig()        # type: ignore
