@@ -1,4 +1,5 @@
 import uuid
+from typing import Mapping, Any
 
 from .base_model import BaseModel
 from .node import Node, NodeRepository
@@ -35,6 +36,8 @@ class Network(BaseModel):
         self.network_name = network_name
         self.description = description
         self.visible = visible
+        self.centralised = centralised
+        self.registered = registered
         self.instance_id = instance_id or str(uuid.uuid4())
         self.node_ids = node_ids or []
 
@@ -63,26 +66,30 @@ class Network(BaseModel):
 
     @classmethod
     def from_dict(cls,
-                  payload: dict,
+                  payload: Mapping[str, Any],
                   ) -> 'Network':
         """
         Build a Network object from a dictionary.
         :param payload: The dictionary containing network data
         :return: Network object
         """
-        if 'networkId' not in payload or not payload['networkId']:
-            payload['networkId'] = str(uuid.uuid4())
+        network_id = payload.get('networkId')
+        if not network_id:
+            network_id = str(uuid.uuid4())
 
-        if 'instanceId' not in payload or not payload['instanceId']:
-            payload['instanceId'] = str(uuid.uuid4())
+        instance_id = payload.get('instanceId')
+        if not instance_id:
+            instance_id = str(uuid.uuid4())
 
         return cls(
-            network_id=payload['networkId'],
+            network_id=network_id,
             network_name=payload['networkName'],
             description=payload['description'],
             node_ids=payload.get('nodeIds', []),
-            visible=payload['visible'],
-            instance_id=payload['instanceId'],
+            visible=payload.get('visible', False),
+            centralised=payload.get('centralised', False),
+            registered=payload.get('registered', False),
+            instance_id=instance_id,
         )
 
     def to_dict(self) -> dict:
@@ -96,6 +103,8 @@ class Network(BaseModel):
             'description': self.description,
             'nodeIds': self.node_ids,
             'visible': self.visible,
+            'centralised': self.centralised,
+            'registered': self.registered,
             'instanceId': self.instance_id,
         }
 
@@ -116,6 +125,21 @@ class NetworkRepository:
         Retrieve a network by its ID.
         :param network_id: The ID of the network to retrieve.
         :return: Network object or None if not found.
+        """
+        raise NotImplementedError
+
+    async def filter(self,
+                     *,
+                     visible: bool | None = None,
+                     centralised: bool | None = None,
+                     registered: bool | None = None,
+                     ) -> list[Network]:
+        """
+        Filter networks based on visibility, centralisation, and registration status.
+        :param visible: Whether the network is visible for others to apply for joining.
+        :param centralised: Whether the network has a centralised node for permission and identity management.
+        :param registered: Whether the network is registered in a public registry.
+        :return: A list of Network objects that match the filter criteria.
         """
         raise NotImplementedError
 

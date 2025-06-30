@@ -26,7 +26,7 @@ class UserIdentity:
         }
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "UserIdentity":
+    def from_dict(cls, data: Mapping[str, Any]) -> 'UserIdentity':
         """
         Create a UserIdentity instance from a dictionary.
 
@@ -59,7 +59,7 @@ class User(BaseModel):
         }
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "User":
+    def from_dict(cls, data: Mapping[str, Any]) -> 'User':
         """
         Create a User instance from a dictionary.
 

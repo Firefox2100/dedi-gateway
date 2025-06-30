@@ -24,7 +24,6 @@ dependencies = [
     "cryptography~=45.0.4",
     "httpx~=0.28.1",
     "networkx~=3.5",
-    "pymongo~=4.13.2",
     "pydantic-settings~=2.10.1",
     "quart~=0.20.0",
     "requests~=2.32.4",
@@ -40,6 +39,15 @@ test = [
     "pytest-asyncio~=1.0.0",
     "pytest-cov~=6.2.1",
     "pylint~=3.3.7",
+]
+hypercorn = [
+    "hypercorn~=0.17.3",
+]
+mongodb = [
+    "pymongo~=4.13.2",
+]
+redis = [
+    "redis~=5.0.3",
 ]
 
 [project.urls]

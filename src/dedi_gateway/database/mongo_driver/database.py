@@ -1,6 +1,8 @@
 from pymongo import AsyncMongoClient
 
 from ..database import Database
+from .network import MongoNetworkRepository
+from .node import MongoNodeRepository
 from .user import MongoUserRepository
 
 
@@ -18,15 +20,22 @@ class MongoDatabase(Database):
         :return: The MongoDB database instance.
         """
         if self._client is None:
-            raise ValueError("MongoDB client is not set. Call set_client() first.")
+            raise ValueError('MongoDB client is not set. Call set_client() first.')
         return self._client[self._db_name]
 
     @property
-    def users(self):
-        """
-        User repository for managing users in the MongoDB database.
-        :return:
-        """
+    def networks(self) -> MongoNetworkRepository:
+        return MongoNetworkRepository(
+            db=self.db,
+            node_repository=self.nodes,
+        )
+
+    @property
+    def nodes(self) -> MongoNodeRepository:
+        return MongoNodeRepository(self.db)
+
+    @property
+    def users(self) -> MongoUserRepository:
         return MongoUserRepository(self.db)
 
     @classmethod

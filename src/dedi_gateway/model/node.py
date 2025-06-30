@@ -1,3 +1,5 @@
+from typing import Mapping, Any
+
 from dedi_gateway.etc.consts import SERVICE_CONFIG
 from dedi_gateway.etc.enums import UserMappingType
 from .base_model import BaseModel
@@ -79,7 +81,7 @@ class Node(BaseModel):
         ))
 
     @classmethod
-    def from_dict(cls, payload: dict) -> 'Node':
+    def from_dict(cls, payload: Mapping[str, Any]) -> 'Node':
         """
         Build a node object from a dictionary
         :param payload: Dictionary containing the node information
@@ -167,6 +169,22 @@ class NodeRepository:
         """
         Save a node to the repository.
         :param node: Node object to save.
+        :return: None
+        """
+        raise NotImplementedError
+
+    async def delete(self, node_id: str) -> None:
+        """
+        Delete a node by its ID.
+        :param node_id: The ID of the node to delete.
+        :return: None
+        """
+        raise NotImplementedError
+
+    async def update(self, node: Node) -> None:
+        """
+        Update an existing node in the repository.
+        :param node: Node object to update.
         :return: None
         """
         raise NotImplementedError

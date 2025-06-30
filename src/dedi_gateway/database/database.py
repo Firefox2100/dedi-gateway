@@ -1,8 +1,27 @@
 from dedi_gateway.etc.consts import SERVICE_CONFIG
+from dedi_gateway.etc.errors import ConfigurationParsingException
+from dedi_gateway.model.network import NetworkRepository
+from dedi_gateway.model.node import NodeRepository
 from dedi_gateway.model.user import UserRepository
 
 
 class Database:
+    @property
+    def networks(self) -> NetworkRepository:
+        """
+        Get the network repository for managing networks in the database.
+        :return: NetworkRepository instance.
+        """
+        raise NotImplementedError("This method should be implemented by subclasses.")
+
+    @property
+    def nodes(self) -> NodeRepository:
+        """
+        Get the node repository for managing nodes in the database.
+        :return: NodeRepository instance.
+        """
+        raise NotImplementedError("This method should be implemented by subclasses.")
+
     @property
     def users(self) -> UserRepository:
         """
@@ -26,9 +45,28 @@ def get_active_db() -> Database | None:
         return _active_db
 
     if SERVICE_CONFIG.database_driver == 'mongo':
-        from .mongo import MongoDatabase
+        from pymongo import AsyncMongoClient
+        from .mongo_driver import MongoDatabase
+
+        mongo_client = AsyncMongoClient(
+            host=SERVICE_CONFIG.mongodb_host,
+            port=SERVICE_CONFIG.mongodb_port,
+        )
+        MongoDatabase.set_client(
+            client=mongo_client,
+            db_name=SERVICE_CONFIG.mongodb_db_name,
+        )
+
         _active_db = MongoDatabase()
 
         return _active_db
+    elif SERVICE_CONFIG.database_driver == 'memory':
+        from .memory import MemoryDatabase
 
-    return None
+        _active_db = MemoryDatabase()
+
+        return _active_db
+    else:
+        raise ConfigurationParsingException(
+            f'Unsupported database driver: {SERVICE_CONFIG.database_driver}'
+        )
