@@ -22,6 +22,10 @@ class ServiceConfig(BaseSettings):
         0.3,
         description='Exponential Moving Average factor for node scores',
     )
+    challenge_difficulty: int = Field(
+        22,
+        description='Difficulty level for Proof of Work challenges, by how many leading zeros are required in the hash',
+    )
 
     database_driver: str = Field(
         'mongo',
@@ -40,17 +44,17 @@ class ServiceConfig(BaseSettings):
         description='Name of the MongoDB database to use',
     )
 
-    broker_driver: str = Field(
+    cache_driver: str = Field(
         'redis',
-        description='Message broker driver to use for the service',
+        description='Cache driver to use for the service',
     )
     redis_host: str = Field(
         'localhost',
-        description='Redis host for the message broker',
+        description='Redis host for the cache',
     )
     redis_port: int = Field(
         6379,
-        description='Redis port for the message broker',
+        description='Redis port for the cache',
     )
 
 

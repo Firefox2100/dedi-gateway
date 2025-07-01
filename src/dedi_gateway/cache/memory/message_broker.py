@@ -54,7 +54,7 @@ class MemoryMessageBroker(MessageBroker):
     _db = {}
 
     async def get_message(self, node_id: str) -> dict:
-        queue: AsyncQueue | None = self._db.get(node_id, None)
+        queue: AsyncQueue | None = MemoryMessageBroker._db.get(node_id, None)
 
         counter = 0
         while counter < self.DRIVER_TIMEOUT * 2:
@@ -65,16 +65,16 @@ class MemoryMessageBroker(MessageBroker):
             await asyncio.sleep(0.5)
 
             if queue is None:
-                queue = self._db.get(node_id, None)
+                queue = MemoryMessageBroker._db.get(node_id, None)
 
         raise MessageBrokerTimeoutException(
             f'Timed out waiting for message for node {node_id}.'
         )
 
     async def publish_message(self, node_id: str, message: dict):
-        queue = self._db.get(node_id, None)
+        queue = MemoryMessageBroker._db.get(node_id, None)
         if queue is None:
             queue = AsyncQueue()
-            self._db[node_id] = queue
+            MemoryMessageBroker._db[node_id] = queue
 
         await queue.put(message)

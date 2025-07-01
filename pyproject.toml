@@ -59,7 +59,7 @@ Issues = "https://github.com/Firefox2100/dedi-gateway/issues"
 version = {attr = "dedi_gateway.__version__"}
 
 [tool.setuptools.package-data]
-dedi_link = ["data/*"]
+dedi_gateway = ["data/*"]
 
 [tool.pylint.main]
 clear-cache-post-run = true

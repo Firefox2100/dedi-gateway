@@ -1,14 +1,54 @@
 import json
+import time
 import asyncio
-from quart import Blueprint, websocket, abort
+import secrets
+import hashlib
+from quart import Blueprint, request, websocket, abort
 
-from dedi_gateway.cache import get_active_broker
+from dedi_gateway.etc.consts import SERVICE_CONFIG
+from dedi_gateway.cache import get_active_broker, get_active_cache
 
 
 service_blueprint = Blueprint("service", __name__)
 
 
-@service_blueprint.websocket("/websocket")
+@service_blueprint.route('/challenge', methods=['GET'])
+async def get_challenge():
+    """
+    Generate a Proof of Work challenge for request validation.
+
+    This is to prevent spam and abuse of the unprotected endpoints by enforcing a
+    CPU cost for each request.
+    :return: The nonce and difficulty level for the challenge.
+    """
+    nonce = secrets.token_hex(16)
+    difficulty = SERVICE_CONFIG.challenge_difficulty
+    timestamp = int(time.time())
+
+    cache = get_active_cache()
+    await cache.store_challenge(
+        nonce=nonce,
+        difficulty=difficulty,
+        timestamp=timestamp,
+    )
+
+    return {
+        'nonce': nonce,
+        'difficulty': difficulty,
+        'timestamp': timestamp
+    }, 200
+
+
+@service_blueprint.route('/requests', methods=['POST'])
+async def submit_request():
+    """
+    Submit a join request or invite to the service.
+    :return:
+    """
+    data = await request.get_json()
+
+
+@service_blueprint.websocket('/websocket')
 async def service_websocket():
     """
     WebSocket endpoint for server-to-server communication.

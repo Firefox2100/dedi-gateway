@@ -17,9 +17,7 @@ class MessageBroker:
         :return: A dictionary containing the message data.
         :raises MessageBrokerTimeoutException: If the operation times out.
         """
-        raise NotImplementedError(
-            'This method should be implemented by subclasses of MessageBroker.'
-        )
+        raise NotImplementedError
 
     async def publish_message(self, node_id: str, message: dict):
         """
@@ -27,6 +25,7 @@ class MessageBroker:
         :param node_id: The node ID to publish the message to.
         :param message: The message data to publish, as a dictionary.
         """
+        raise NotImplementedError
 
 
 _active_broker: MessageBroker | None = None
@@ -42,7 +41,7 @@ def get_active_broker() -> MessageBroker:
     if _active_broker is not None:
         return _active_broker
 
-    if SERVICE_CONFIG.broker_driver == 'redis':
+    if SERVICE_CONFIG.cache_driver == 'redis':
         import redis.asyncio as redis
         from .redis_driver import RedisMessageBroker
 
@@ -56,7 +55,7 @@ def get_active_broker() -> MessageBroker:
         _active_broker = RedisMessageBroker()
 
         return _active_broker
-    elif SERVICE_CONFIG.broker_driver == 'memory':
+    elif SERVICE_CONFIG.cache_driver == 'memory':
         from .memory import MemoryMessageBroker
 
         _active_broker = MemoryMessageBroker()
@@ -64,5 +63,5 @@ def get_active_broker() -> MessageBroker:
         return _active_broker
     else:
         raise ConfigurationParsingException(
-            f'Unsupported message broker driver: {SERVICE_CONFIG.broker_driver}'
+            f'Unsupported message broker driver: {SERVICE_CONFIG.cache_driver}'
         )
