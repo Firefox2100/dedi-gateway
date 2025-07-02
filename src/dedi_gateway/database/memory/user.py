@@ -5,11 +5,10 @@ class MemoryUserRepository(UserRepository):
     """
     In-memory implementation of the UserRepository interface.
     """
-
     def __init__(self, db: dict):
         """
-        Initialise the MongoUserRepository with a MongoDB database instance.
-        :param db: MongoDB database instance.
+        Initialise the MemoryUserRepository with a dictionary.
+        :param db: A dictionary to act as the in-memory database.
         """
         self.db = db
 

@@ -1,21 +1,22 @@
 from typing import Mapping, Any
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG
-from dedi_gateway.etc.enums import UserMappingType
 from .base_model import BaseModel
-from .user_mapping import UserMapping
 
 
 class Node(BaseModel):
+    """
+    A node in a network
+
+    A Node object represents a node in the network, a basic
+    unit of operation and communication.
+    """
     def __init__(self,
                  node_id: str,
                  node_name: str,
                  url: str,
                  description: str,
-                 client_id: str,
                  *,
-                 authentication_enabled: bool | None = None,
-                 user_mapping: UserMapping | None = None,
                  public_key: str | None = None,
                  data_index: dict = None,
                  score: float = 0.0,
@@ -26,16 +27,12 @@ class Node(BaseModel):
 
         A Node object represents a node in the network, a basic
         unit of operation and communication.
-
         :param node_id: The unique ID of the node
         :param node_name: The name of the node
         :param url: The URL of the node
         :param description: A description of the node
-        :param client_id: The client ID of the node
-        :param authentication_enabled: Whether the requests coming from this node
         require authentication. If disabled, all users will be mapped to the
         same static user with the same permissions.
-        :param user_mapping: The user mapping for this node
         :param public_key: The public key of the node
         :param data_index: The data index of the node
         :param score: The score of the node
@@ -46,9 +43,6 @@ class Node(BaseModel):
         self.url = url
         self.public_key = public_key
         self.description = description
-        self.authentication_enabled = authentication_enabled or False
-        self.user_mapping = user_mapping or UserMapping()
-        self.client_id = client_id
         self.data_index = data_index or {}
         self.score = score
         self.approved = approved
@@ -63,8 +57,6 @@ class Node(BaseModel):
             self.url == other.url,
             self.public_key == other.public_key,
             self.description == other.description,
-            self.authentication_enabled == other.authentication_enabled,
-            self.client_id == other.client_id,
             self.approved == other.approved,
         ])
 
@@ -75,8 +67,6 @@ class Node(BaseModel):
             self.url,
             self.public_key,
             self.description,
-            self.authentication_enabled,
-            self.client_id,
             self.approved,
         ))
 
@@ -91,10 +81,7 @@ class Node(BaseModel):
             node_id=payload['nodeId'],
             node_name=payload['nodeName'],
             url=payload['nodeUrl'],
-            client_id=payload['clientId'],
             description=payload.get('nodeDescription', ''),
-            authentication_enabled=payload.get('authenticationEnabled', False),
-            user_mapping=UserMapping.from_dict(payload.get('userMapping', {})),
             public_key=payload.get('publicKey', None),
             data_index=payload.get('dataIndex', {}),
             score=payload.get('score', 0.0),
@@ -111,17 +98,11 @@ class Node(BaseModel):
             'nodeId': self.node_id,
             'nodeName': self.node_name,
             'nodeUrl': self.url,
-            'clientId': self.client_id,
             'nodeDescription': self.description,
             'score': self.score,
             'approved': self.approved,
         }
 
-        if self.authentication_enabled is not None:
-            payload['authenticationEnabled'] = self.authentication_enabled
-        if (self.user_mapping is not None
-                and self.user_mapping.mapping_type != UserMappingType.NO_MAPPING):
-            payload['userMapping'] = self.user_mapping.to_dict()
         if self.public_key is not None and key:
             payload['publicKey'] = self.public_key
         if self.data_index:

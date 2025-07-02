@@ -1,0 +1,28 @@
+from .auth_message import AuthRequest, AuthInvite
+
+
+class NetworkMessageRepository:
+    """
+    Abstract repository interface for managing network messages.
+    """
+    async def save_sent_request(self,
+                                target_url: str,
+                                request: AuthRequest | AuthInvite,
+                                requires_polling: bool = False,
+                                ):
+        """
+        Save a request that has been sent to a target URL.
+        :param target_url: The URL to which the request was sent
+        :param request: The request object to save
+        :param requires_polling: Whether the request requires polling for a response
+        """
+        raise NotImplementedError
+
+    async def save_received_request(self,
+                                    request: AuthRequest | AuthInvite,
+                                    ):
+        """
+        Save a request that has been received.
+        :param request: The request object to save
+        """
+        raise NotImplementedError

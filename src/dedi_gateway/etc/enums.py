@@ -18,13 +18,13 @@ class TransportType(Enum):
     WEBSOCKET = 'websocket'
 
 
-class UserMappingType(Enum):
+class AuthMessageStatus(Enum):
     """
-    User mapping types
+    Status of an auth message
     """
-    NO_MAPPING = 'noMapping'
-    STATIC = 'static'
-    DYNAMIC = 'dynamic'
+    PENDING = 'pending'
+    ACCEPTED = 'accepted'
+    REJECTED = 'rejected'
 
 
 class MessageType(Enum):
@@ -32,3 +32,4 @@ class MessageType(Enum):
     Types of messages passed in the network protocol
     """
     AUTH_REQUEST = 'authRequest'
+    AUTH_INVITE = 'authInvite'

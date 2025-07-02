@@ -13,6 +13,18 @@ class ServiceConfig(BaseSettings):
         'dedi-gateway',
         description='Name of the application'
     )
+    access_url: str = Field(
+        'http://localhost:5321',
+        description='Publicly accessible URL for the service',
+    )
+    service_name: str = Field(
+        'Decentralised Discovery Gateway',
+        description='Name of the service',
+    )
+    service_description: str = Field(
+        'A decentralised discovery gateway for federated networks',
+        description='Description of the service',
+    )
     logging_level: str = Field(
         'INFO',
         description='Logging level for the application'
@@ -55,6 +67,34 @@ class ServiceConfig(BaseSettings):
     redis_port: int = Field(
         6379,
         description='Redis port for the cache',
+    )
+
+    kms_driver: str = Field(
+        'vault',
+        description='Key Management Service driver to use for the service',
+    )
+    vault_url: str = Field(
+        'http://localhost:8200',
+        description='URL for the HashiCorp Vault service',
+    )
+    vault_role_id: str = Field(
+        description='Role ID for the HashiCorp Vault service',
+    )
+    vault_secret_id: str = Field(
+        description='Secret ID for the HashiCorp Vault service',
+    )
+    vault_kv_engine: str = Field(
+        'kv',
+        description='KV engine name for the HashiCorp Vault service',
+    )
+    vault_kv_path: str = Field(
+        'dedi-gateway',
+        description='Root path for the KV store used by the '
+                    'Decentralised Discovery Gateway service',
+    )
+    vault_transit_engine: str = Field(
+        'transit',
+        description='Transit engine name for the HashiCorp Vault service',
     )
 
 

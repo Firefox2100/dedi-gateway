@@ -1,5 +1,6 @@
 from ..database import Database
 from .network import MemoryNetworkRepository
+from .network_message import MemoryNetworkMessageRepository
 from .node import MemoryNodeRepository
 from .user import MemoryUserRepository
 
@@ -11,6 +12,7 @@ class MemoryDatabase(Database):
     Do not use in production.
     """
     _networks = {}
+    _messages = {}
     _nodes = {}
     _users = {}
 
@@ -20,6 +22,10 @@ class MemoryDatabase(Database):
             db=self._networks,
             node_repository=self.nodes,
         )
+
+    @property
+    def messages(self) -> MemoryNetworkMessageRepository:
+        return MemoryNetworkMessageRepository(self._messages)
 
     @property
     def nodes(self) -> MemoryNodeRepository:

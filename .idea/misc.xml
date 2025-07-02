@@ -4,4 +4,7 @@
     <option name="sdkName" value="dedi-gateway" />
   </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="dedi-gateway" project-jdk-type="Python SDK" />
+  <component name="PythonCompatibilityInspectionAdvertiser">
+    <option name="version" value="3" />
+  </component>
 </project>

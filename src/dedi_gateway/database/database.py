@@ -1,6 +1,7 @@
 from dedi_gateway.etc.consts import SERVICE_CONFIG
 from dedi_gateway.etc.errors import ConfigurationParsingException
 from dedi_gateway.model.network import NetworkRepository
+from dedi_gateway.model.network_message import NetworkMessageRepository
 from dedi_gateway.model.node import NodeRepository
 from dedi_gateway.model.user import UserRepository
 
@@ -12,7 +13,15 @@ class Database:
         Get the network repository for managing networks in the database.
         :return: NetworkRepository instance.
         """
-        raise NotImplementedError("This method should be implemented by subclasses.")
+        raise NotImplementedError
+
+    @property
+    def messages(self) -> NetworkMessageRepository:
+        """
+        Get the network message repository for managing messages in the database.
+        :return: NetworkMessageRepository instance.
+        """
+        raise NotImplementedError
 
     @property
     def nodes(self) -> NodeRepository:
@@ -20,7 +29,7 @@ class Database:
         Get the node repository for managing nodes in the database.
         :return: NodeRepository instance.
         """
-        raise NotImplementedError("This method should be implemented by subclasses.")
+        raise NotImplementedError
 
     @property
     def users(self) -> UserRepository:
@@ -28,7 +37,7 @@ class Database:
         Get the user repository for managing users in the database.
         :return: UserRepository instance.
         """
-        raise NotImplementedError("This method should be implemented by subclasses.")
+        raise NotImplementedError
 
 
 _active_db: Database | None = None

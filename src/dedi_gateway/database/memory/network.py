@@ -22,15 +22,12 @@ class MemoryNetworkRepository(NetworkRepository):
     async def filter(self,
                      *,
                      visible: bool | None = None,
-                     centralised: bool | None = None,
                      registered: bool | None = None,
                      ) -> list[Network]:
         networks = list(self.db.values())
 
         if visible is not None:
             networks = [n for n in networks if n.visible == visible]
-        if centralised is not None:
-            networks = [n for n in networks if n.centralised == centralised]
         if registered is not None:
             networks = [n for n in networks if n.registered == registered]
 

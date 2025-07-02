@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 class MongoNetworkRepository(NetworkRepository):
     """
-    MongoDB implementation of the UserRepository interface.
+    MongoDB implementation of the NetworkRepository interface.
     """
     def __init__(self,
                  db: AsyncDatabase,
@@ -36,15 +36,12 @@ class MongoNetworkRepository(NetworkRepository):
     async def filter(self,
                      *,
                      visible: bool | None = None,
-                     centralised: bool | None = None,
                      registered: bool | None = None,
                      ) -> list[Network]:
         filters = {}
 
         if visible is not None:
             filters['visible'] = visible
-        if centralised is not None:
-            filters['centralised'] = centralised
         if registered is not None:
             filters['registered'] = registered
 

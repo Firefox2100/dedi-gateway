@@ -2,14 +2,29 @@ import json
 import time
 import asyncio
 import secrets
-import hashlib
 from quart import Blueprint, request, websocket, abort
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG
+from dedi_gateway.etc.enums import MessageType
+from dedi_gateway.etc.powlib import validate
 from dedi_gateway.cache import get_active_broker, get_active_cache
+from dedi_gateway.database import get_active_db
+from dedi_gateway.model.network_message import AuthRequest, AuthInvite
+from dedi_gateway.model.network_interface import AuthInterface
 
 
 service_blueprint = Blueprint("service", __name__)
+
+
+@service_blueprint.route('/status', methods=['GET'])
+async def get_service_status():
+    """
+    Get the status of the service.
+    :return: Current service status
+    """
+    return {
+        'status': 'running',
+    }
 
 
 @service_blueprint.route('/challenge', methods=['GET'])
@@ -34,9 +49,39 @@ async def get_challenge():
 
     return {
         'nonce': nonce,
-        'difficulty': difficulty,
-        'timestamp': timestamp
+        'difficulty': difficulty
     }, 200
+
+
+@service_blueprint.route('/networks', methods=['GET'])
+async def get_visible_networks():
+    """
+    Get a list of visible networks to apply for joining.
+    :return: A stripped list of visible networks, with only necessary information.
+    """
+    db = get_active_db()
+
+    networks = await db.networks.filter(visible=True)
+    network_response = []
+
+    for network in networks:
+        payload = {
+            'networkId': network.network_id,
+            'networkName': network.network_name,
+            'description': network.description,
+            'registered': network.registered,
+        }
+
+        if network.central_node:
+            # Network has a central permission management node, needs to join from there
+            if network.central_node == network.instance_id:
+                # This is the central node
+                payload['centralUrl'] = SERVICE_CONFIG.access_url
+            else:
+                central_node = await db.nodes.get(network.central_node)
+                payload['centralUrl'] = central_node.url
+
+        network_response.append(payload)
 
 
 @service_blueprint.route('/requests', methods=['POST'])
@@ -46,6 +91,52 @@ async def submit_request():
     :return:
     """
     data = await request.get_json()
+
+    if not data:
+        abort(400, 'No data provided in request.')
+
+    cache = get_active_cache()
+    challenge_nonce = data['challenge']['nonce']
+    challenge_solution = data['challenge']['solution']
+
+    challenge_difficulty = await cache.get_challenge(challenge_nonce)
+
+    if not challenge_difficulty:
+        abort(403, 'Invalid challenge nonce.')
+
+    if not validate(
+        nonce=challenge_nonce,
+        difficulty=challenge_difficulty,
+        response=challenge_solution,
+    ):
+        abort(403, 'Invalid challenge solution.')
+
+    message_type = MessageType(data['messageType'])
+    db = get_active_db()
+
+    if message_type == MessageType.AUTH_REQUEST:
+        # Request to join a network
+        auth_request = AuthRequest.from_dict(data)
+        await db.messages.save_received_request(
+            request=auth_request,
+        )
+
+        reachable = await AuthInterface().check_node_connectivity(auth_request.node.url)
+    elif message_type == MessageType.AUTH_INVITE:
+        # Invite to join a network
+        auth_invite = AuthInvite.from_dict(data)
+        await db.messages.save_received_request(
+            request=auth_invite,
+        )
+
+        reachable = await AuthInterface().check_node_connectivity(auth_invite.node.url)
+    else:
+        return abort(400, 'Invalid message type specified.')
+
+    return {
+        'status': 'success',
+        'reachable': reachable,
+    }
 
 
 @service_blueprint.websocket('/websocket')

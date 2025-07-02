@@ -1,8 +1,8 @@
 from quart import Blueprint, request
 
+from dedi_gateway.etc.utils import exception_handler
 from dedi_gateway.database import get_active_db
 from dedi_gateway.model import Network
-from .utils import exception_handler
 
 management_blueprint = Blueprint('management', __name__)
 
@@ -17,9 +17,6 @@ async def get_networks():
     visible = request.args.get('visible', None)
     if visible is not None:
         visible = visible.lower() == 'true'
-    centralised = request.args.get('centralised', None)
-    if centralised is not None:
-        centralised = centralised.lower() == 'true'
     registered = request.args.get('registered', None)
     if registered is not None:
         registered = registered.lower() == 'true'
@@ -27,7 +24,6 @@ async def get_networks():
     db = get_active_db()
     networks = await db.networks.filter(
         visible=visible,
-        centralised=centralised,
         registered=registered
     )
 

@@ -2,6 +2,7 @@ from pymongo import AsyncMongoClient
 
 from ..database import Database
 from .network import MongoNetworkRepository
+from .network_message import MongoNetworkMessageRepository
 from .node import MongoNodeRepository
 from .user import MongoUserRepository
 
@@ -10,7 +11,7 @@ class MongoDatabase(Database):
     """
     MongoDB implementation of the Database interface.
     """
-    _client = None
+    _client: AsyncMongoClient = None
     _db_name = 'dedi-gateway'
 
     @property
@@ -29,6 +30,10 @@ class MongoDatabase(Database):
             db=self.db,
             node_repository=self.nodes,
         )
+
+    @property
+    def messages(self) -> MongoNetworkMessageRepository:
+        return MongoNetworkMessageRepository(self.db)
 
     @property
     def nodes(self) -> MongoNodeRepository:

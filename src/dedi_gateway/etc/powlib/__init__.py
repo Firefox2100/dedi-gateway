@@ -1,1 +1,1 @@
-from .binding import solve
+from .binding import solve, validate

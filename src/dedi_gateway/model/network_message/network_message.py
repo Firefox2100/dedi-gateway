@@ -12,6 +12,10 @@ class NetworkMessage(BaseModel):
     def __init__(self,
                  metadata: MessageMetadata,
                  ):
+        """
+        Base class for a Network message
+        :param metadata: The metadata for the message
+        """
         self.metadata = metadata
 
     def to_dict(self) -> dict:
@@ -20,6 +24,7 @@ class NetworkMessage(BaseModel):
         :return: A dictionary representation of the NetworkMessage
         """
         return {
+            'messageType': self.message_type.value if self.message_type else None,
             'metadata': self.metadata.to_dict(),
         }
 

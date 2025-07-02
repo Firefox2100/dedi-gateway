@@ -13,9 +13,9 @@ class Network(BaseModel):
                  description: str = '',
                  node_ids: list[str] | None = None,
                  visible: bool = False,
-                 centralised: bool = False,
                  registered: bool = False,
                  instance_id: str = None,
+                 central_node: str = None,
                  ):
         """
         A network that contains nodes which agreed to share data among each other.
@@ -28,18 +28,19 @@ class Network(BaseModel):
         :param description: A description of the network
         :param node_ids: The IDs of the nodes in the network
         :param visible: Whether the network is visible to others to apply for joining
-        :param centralised: Whether the network has a centralised node for permission and identity management
         :param registered: Whether the network is registered in a public registry
         :param instance_id: The unique ID of the network instance
+        :param central_node: The ID of the central node for permission and identity management.
+            None if the permission is decentralised.
         """
         self.network_id = network_id
         self.network_name = network_name
         self.description = description
         self.visible = visible
-        self.centralised = centralised
         self.registered = registered
         self.instance_id = instance_id or str(uuid.uuid4())
         self.node_ids = node_ids or []
+        self.central_node = central_node
 
     def __eq__(self, other):
         if not isinstance(other, Network):
@@ -50,7 +51,9 @@ class Network(BaseModel):
             self.network_name == other.network_name,
             self.description == other.description,
             self.visible == other.visible,
+            self.registered == other.registered,
             self.node_ids == other.node_ids,
+            self.central_node == other.central_node,
         ])
 
     def __hash__(self):
@@ -60,6 +63,8 @@ class Network(BaseModel):
                 self.network_name,
                 self.description,
                 self.visible,
+                self.registered,
+                self.central_node,
                 tuple(self.node_ids),
             )
         )
@@ -87,9 +92,9 @@ class Network(BaseModel):
             description=payload['description'],
             node_ids=payload.get('nodeIds', []),
             visible=payload.get('visible', False),
-            centralised=payload.get('centralised', False),
             registered=payload.get('registered', False),
             instance_id=instance_id,
+            central_node=payload.get('centralNode', False),
         )
 
     def to_dict(self) -> dict:
@@ -103,9 +108,9 @@ class Network(BaseModel):
             'description': self.description,
             'nodeIds': self.node_ids,
             'visible': self.visible,
-            'centralised': self.centralised,
             'registered': self.registered,
             'instanceId': self.instance_id,
+            'centralNode': self.central_node,
         }
 
 
@@ -131,13 +136,11 @@ class NetworkRepository:
     async def filter(self,
                      *,
                      visible: bool | None = None,
-                     centralised: bool | None = None,
                      registered: bool | None = None,
                      ) -> list[Network]:
         """
         Filter networks based on visibility, centralisation, and registration status.
         :param visible: Whether the network is visible for others to apply for joining.
-        :param centralised: Whether the network has a centralised node for permission and identity management.
         :param registered: Whether the network is registered in a public registry.
         :return: A list of Network objects that match the filter criteria.
         """

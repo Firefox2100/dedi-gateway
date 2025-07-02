@@ -33,3 +33,36 @@ class MessageBrokerTimeoutException(DediGatewayException):
                  status_code: int = 504,
                  ):
         super().__init__(message, status_code)
+
+
+class KmsKeyManagementException(DediGatewayException):
+    """
+    Exception raised when there is an error with KMS key management.
+    """
+    def __init__(self,
+                 message: str = 'Error managing KMS keys.',
+                 status_code: int = 500,
+                 ):
+        super().__init__(message, status_code)
+
+
+class NetworkRequestFailedException(DediGatewayException):
+    """
+    Exception raised when a network request fails.
+    """
+    def __init__(self,
+                 message: str = 'Network request failed.',
+                 status_code: int = 502,
+                 ):
+        super().__init__(message, status_code)
+
+
+class JoiningNetworkException(DediGatewayException):
+    """
+    Exception raised when joining a network fails.
+    """
+    def __init__(self,
+                 message: str = 'Failed to join the network.',
+                 status_code: int = 503,
+                 ):
+        super().__init__(message, status_code)
