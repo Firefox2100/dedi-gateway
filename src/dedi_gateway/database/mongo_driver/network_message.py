@@ -44,3 +44,27 @@ class MongoNetworkMessageRepository(NetworkMessageRepository):
         }
 
         await self.received_requests.insert_one(payload)
+
+    async def get_requests(self,
+                           sent: bool = None,
+                           status: list[AuthMessageStatus] = None,
+                           ) -> list[dict]:
+        query = {}
+        docs = []
+
+        if status:
+            query['status'] = {'$in': [s.value for s in status]}
+
+        if sent is not True:
+            cursor = self.received_requests.find(query)
+
+            async for doc in cursor:
+                docs.append(doc)
+
+        if sent is not False:
+            cursor = self.sent_requests.find(query)
+
+            async for doc in cursor:
+                docs.append(doc)
+
+        return docs

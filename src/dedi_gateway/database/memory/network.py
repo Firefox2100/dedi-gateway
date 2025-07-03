@@ -27,9 +27,9 @@ class MemoryNetworkRepository(NetworkRepository):
         networks = list(self.db.values())
 
         if visible is not None:
-            networks = [n for n in networks if n.visible == visible]
+            networks = [n for n in networks if n['visible'] == visible]
         if registered is not None:
-            networks = [n for n in networks if n.registered == registered]
+            networks = [n for n in networks if n['registered'] == registered]
 
         return [Network.from_dict(n) for n in networks]
 

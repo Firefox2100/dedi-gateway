@@ -83,6 +83,8 @@ async def get_visible_networks():
 
         network_response.append(payload)
 
+    return network_response
+
 
 @service_blueprint.route('/requests', methods=['POST'])
 async def submit_request():

@@ -98,7 +98,7 @@ class AuthInterface(NetworkInterface):
         )
         join_response = await self._session.raw_post(
             url=f'{target_url}/service/requests',
-            json=join_request.to_dict(),
+            payload=join_request.to_dict(),
         )
 
         # Store the request in the database

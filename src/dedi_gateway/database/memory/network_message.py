@@ -25,6 +25,9 @@ class MemoryNetworkMessageRepository(NetworkMessageRepository):
             'status': AuthMessageStatus.PENDING.value,
         }
 
+        if 'sentRequests' not in self.db:
+            self.db['sentRequests'] = {}
+
         self.db['sentRequests'][request.metadata.message_id] = payload
 
     async def save_received_request(self,
@@ -35,4 +38,27 @@ class MemoryNetworkMessageRepository(NetworkMessageRepository):
             'status': AuthMessageStatus.PENDING.value,
         }
 
+        if 'receivedRequests' not in self.db:
+            self.db['receivedRequests'] = {}
+
         self.db['receivedRequests'][request.metadata.message_id] = payload
+
+    async def get_requests(self,
+                           sent: bool = None,
+                           status: list[AuthMessageStatus] = None,
+                           ) -> list[dict]:
+        docs = []
+
+        if sent is not True:
+            received_requests = self.db.get('receivedRequests', {})
+            for request in received_requests.values():
+                if status is None or request['status'] in [s.value for s in status]:
+                    docs.append(request)
+
+        if sent is not False:
+            sent_requests = self.db.get('sentRequests', {})
+            for request in sent_requests.values():
+                if status is None or request['status'] in [s.value for s in status]:
+                    docs.append(request)
+
+        return docs

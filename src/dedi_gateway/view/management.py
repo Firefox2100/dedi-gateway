@@ -1,9 +1,11 @@
 from quart import Blueprint, request
 
+from dedi_gateway.etc.enums import AuthMessageStatus
 from dedi_gateway.etc.utils import exception_handler
 from dedi_gateway.kms import get_active_kms
 from dedi_gateway.database import get_active_db
 from dedi_gateway.model import Network
+from dedi_gateway.model.network_interface import AuthInterface
 
 management_blueprint = Blueprint('management', __name__)
 
@@ -57,6 +59,28 @@ async def create_network():
     await kms.generate_network_management_key(network.network_id)
 
     return network.to_dict(), 201
+
+
+@management_blueprint.route('/networks/join', methods=['POST'])
+@exception_handler
+async def join_network():
+    """
+    Request to join a network on another node.
+    :return:
+    """
+    data = await request.get_json()
+
+    if not data:
+        return {'error': 'No data provided'}, 400
+
+    auth_interface = AuthInterface()
+    await auth_interface.send_join_request(
+        target_url=data['targetUrl'],
+        network_id=data['networkId'],
+        justification=data.get('justification', None)
+    )
+
+    return {'message': 'Join request sent successfully'}, 202
 
 
 @management_blueprint.route('/networks/<network_id>', methods=['GET'])
@@ -114,3 +138,26 @@ async def delete_network(network_id):
     await db.networks.delete(network_id)
 
     return {'message': 'Network deleted successfully'}, 204
+
+
+@management_blueprint.route('/requests', methods=['GET'])
+@exception_handler
+async def get_network_requests():
+    """
+    Retrieve a list of join requests or invites, both sent and received.
+
+    Filters can be applied to show only sent or received requests, pending
+    or accepted requests, etc.
+    :return:
+    """
+    db = get_active_db()
+
+    sent = request.args.get('sent', None)
+    status = request.args.getlist('status')
+
+    auth_requests = await db.messages.get_requests(
+        sent=sent,
+        status=[AuthMessageStatus(s) for s in status] if status else None,
+    )
+
+    return auth_requests

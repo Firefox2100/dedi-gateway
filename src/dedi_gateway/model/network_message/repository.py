@@ -1,3 +1,4 @@
+from dedi_gateway.etc.enums import AuthMessageStatus
 from .auth_message import AuthRequest, AuthInvite
 
 
@@ -24,5 +25,19 @@ class NetworkMessageRepository:
         """
         Save a request that has been received.
         :param request: The request object to save
+        """
+        raise NotImplementedError
+
+    async def get_requests(self,
+                           sent: bool = None,
+                           status: list[AuthMessageStatus] = None,
+                           ) -> list[dict]:
+        """
+        Retrieve requests based on their direction and status.
+        :param sent: If True, retrieve sent requests; if False, retrieve received
+            requests; if None, retrieve both.
+        :param status: List of statuses to filter requests by. If None, all
+            statuses are included.
+        :return: List of requests matching the criteria.
         """
         raise NotImplementedError
