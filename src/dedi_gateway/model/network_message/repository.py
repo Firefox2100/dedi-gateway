@@ -1,3 +1,5 @@
+from typing import Mapping, Any
+
 from dedi_gateway.etc.enums import AuthMessageStatus
 from .auth_message import AuthRequest, AuthInvite
 
@@ -39,5 +41,26 @@ class NetworkMessageRepository:
         :param status: List of statuses to filter requests by. If None, all
             statuses are included.
         :return: List of requests matching the criteria.
+        """
+        raise NotImplementedError
+
+    async def get_received_request(self,
+                                   request_id: str,
+                                   ) -> Mapping[str, Any]:
+        """
+        Retrieve a specific received request by its ID.
+        :param request_id: The ID of the request to retrieve.
+        :return: The request data if found, otherwise None.
+        """
+        raise NotImplementedError
+
+    async def update_request_status(self,
+                                    request_id: str,
+                                    status: AuthMessageStatus,
+                                    ) -> None:
+        """
+        Update the status of a request.
+        :param request_id: The ID of the request to update.
+        :param status: The new status to set for the request.
         """
         raise NotImplementedError

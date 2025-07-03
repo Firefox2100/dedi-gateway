@@ -66,3 +66,36 @@ class JoiningNetworkException(DediGatewayException):
                  status_code: int = 503,
                  ):
         super().__init__(message, status_code)
+
+
+class InvitingNodeException(DediGatewayException):
+    """
+    Exception raised when inviting a node to a network fails.
+    """
+    def __init__(self,
+                 message: str = 'Failed to invite the node to the network.',
+                 status_code: int = 503,
+                 ):
+        super().__init__(message, status_code)
+
+
+class NetworkNotFoundException(DediGatewayException):
+    """
+    Exception raised when a network is not found.
+    """
+    def __init__(self,
+                 message: str = 'Network not found.',
+                 status_code: int = 404,
+                 ):
+        super().__init__(message, status_code)
+
+
+class NetworkMessageNotFoundException(DediGatewayException):
+    """
+    Exception raised when a network message is not found.
+    """
+    def __init__(self,
+                 message: str = 'Network message not found.',
+                 status_code: int = 404,
+                 ):
+        super().__init__(message, status_code)

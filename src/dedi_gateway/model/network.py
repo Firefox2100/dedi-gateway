@@ -125,7 +125,7 @@ class NetworkRepository:
         """
         self.node_repository = node_repository
 
-    async def get(self, network_id: str) -> Network | None:
+    async def get(self, network_id: str) -> Network:
         """
         Retrieve a network by its ID.
         :param network_id: The ID of the network to retrieve.
@@ -184,3 +184,11 @@ class NetworkRepository:
         nodes = await self.node_repository.batch_get(network.node_ids)
 
         return nodes
+
+    async def add_node(self, network_id: str, node: Node) -> None:
+        """
+        Add a node to a network.
+        :param network_id: The ID of the network to add the node to.
+        :param node: The Node object to add to the network.
+        """
+        raise NotImplementedError

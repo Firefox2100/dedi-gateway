@@ -1,15 +1,18 @@
 import time
+from copy import deepcopy
 from uuid import uuid4
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG
-from dedi_gateway.etc.errors import JoiningNetworkException
+from dedi_gateway.etc.errors import JoiningNetworkException, InvitingNodeException, \
+    NetworkRequestFailedException
 from dedi_gateway.etc.powlib import solve
 from dedi_gateway.kms import get_active_kms
 from dedi_gateway.database import get_active_db
-from ..network_message import MessageMetadata, AuthRequest
+from ..network_message import MessageMetadata, AuthRequest, AuthInvite, AuthRequestResponse
 from ..network import Network
 from ..node import Node
 from .network_interface import NetworkInterface
+from ...etc.enums import AuthMessageStatus
 
 
 class AuthInterface(NetworkInterface):
@@ -26,7 +29,6 @@ class AuthInterface(NetworkInterface):
         :param target_url: The URL of the target node to send the request to
         :param network_id: The ID of the network to join
         :param justification: Optional justification for joining the network
-        :return:
         """
         kms = get_active_kms()
         db = get_active_db()
@@ -107,3 +109,136 @@ class AuthInterface(NetworkInterface):
             request=join_request,
             requires_polling=not join_response.get('reachable', False)
         )
+
+    async def send_join_invite(self,
+                               target_url: str,
+                               network_id: str,
+                               justification: str = None,
+                               ):
+        """
+        Invite another node to join a network this node is part of.
+        :param target_url: The URL of the target node to send the invite to
+        :param network_id: The ID of the network to invite the node to
+        :param justification: Optional justification for inviting the node
+        """
+        kms = get_active_kms()
+        db = get_active_db()
+
+        # Load the network from the database
+        network = await db.networks.get(network_id)
+        if network.central_node and network.central_node != network.instance_id:
+            raise InvitingNodeException(
+                f'Network {network_id} has a central node at {network.central_node}, '
+                'which is not the current node.'
+            )
+
+        # Get and solve the security challenge
+        challenge = await self._session.raw_get(
+            url=f'{target_url}/service/challenge',
+        )
+        challenge_solution = solve(
+            nonce=challenge['nonce'],
+            difficulty=challenge['difficulty'],
+        )
+
+        # Prepare and send the join invite
+        network.node_ids = []
+        join_invite = AuthInvite(
+            metadata=MessageMetadata(
+                network_id=network.network_id,
+                node_id=network.instance_id,
+                message_id=str(uuid4()),
+                timestamp=time.time(),
+            ),
+            node=Node(
+                node_id=network.instance_id,
+                node_name=SERVICE_CONFIG.service_name,
+                url=SERVICE_CONFIG.access_url,
+                description=SERVICE_CONFIG.service_description,
+                public_key=await kms.get_network_node_public_key(network_id=network.network_id),
+            ),
+            network=network,
+            challenge_nonce=challenge['nonce'],
+            challenge_solution=challenge_solution,
+            justification=justification or 'No justification provided',
+        )
+        join_response = await self._session.raw_post(
+            url=f'{target_url}/service/requests',
+            payload=join_invite.to_dict(),
+        )
+
+        # Store the request in the database
+        await db.messages.save_sent_request(
+            target_url=target_url,
+            request=join_invite,
+            requires_polling=not join_response.get('reachable', False)
+        )
+
+    async def process_join_request(self,
+                                   request: AuthRequest,
+                                   approve: bool,
+                                   justification: str = None,
+                                   ):
+        """
+        Process a received join request from another node.
+        :param request: The join request to process
+        :param approve: Whether to approve or reject the request
+        :return:
+        """
+        db = get_active_db()
+        kms = get_active_kms()
+        await db.messages.update_request_status(
+            request_id=request.metadata.message_id,
+            status=AuthMessageStatus.ACCEPTED if approve else AuthMessageStatus.REJECTED,
+        )
+
+        network = await db.networks.get(request.metadata.network_id)
+        metadata = MessageMetadata(
+            message_id=request.metadata.message_id,
+            network_id=request.metadata.network_id,
+            node_id=network.instance_id,
+            timestamp=time.time(),
+        )
+
+        if approve:
+            auth_response = AuthRequestResponse(
+                metadata=metadata,
+                approved=True,
+                node=Node(
+                    node_id=network.instance_id,
+                    node_name=SERVICE_CONFIG.service_name,
+                    url=SERVICE_CONFIG.access_url,
+                    description=SERVICE_CONFIG.service_description,
+                    public_key=await kms.get_network_node_public_key(
+                        network_id=request.metadata.network_id,
+                    ),
+                ),
+                network=network,
+                justification=justification or 'No justification provided',
+            )
+
+            # Save the node to the network
+            new_node = deepcopy(request.node)
+            new_node.approved = True
+            new_node.data_index = {}
+
+            await db.networks.add_node(
+                network_id=request.metadata.network_id,
+                node=new_node,
+            )
+        else:
+            auth_response = AuthRequestResponse(
+                metadata=metadata,
+                approved=False,
+                justification=justification or 'No justification provided',
+            )
+
+        # Try sending the response to the requester
+        try:
+            await self._session.raw_post(
+                url=f'{request.node.url}/service/responses',
+                payload=auth_response.to_dict(),
+            )
+        except NetworkRequestFailedException:
+            # Sending failed, wait for the requester to poll for the response
+            pass

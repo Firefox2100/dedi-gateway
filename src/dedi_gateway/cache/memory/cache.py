@@ -5,15 +5,16 @@ from ..cache import Cache
 
 class MemoryCache(Cache):
     """
-    An in-memory implementation of the Cache for hot data caching and multiprocess state persistence.
+    An in-memory implementation of the Cache for hot data caching and
+    multiprocess state persistence.
     """
     _challenges: dict[str, dict] = {}
 
-    async def store_challenge(self,
-                              nonce: str,
-                              difficulty: int,
-                              timestamp: int,
-                              ):
+    async def save_challenge(self,
+                             nonce: str,
+                             difficulty: int,
+                             timestamp: int,
+                             ):
         MemoryCache._challenges[nonce] = {
             'difficulty': difficulty,
             'timestamp': timestamp

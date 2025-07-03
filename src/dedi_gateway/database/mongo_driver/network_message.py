@@ -1,10 +1,9 @@
-from typing import TYPE_CHECKING
+from typing import Mapping, Any
+from pymongo.asynchronous.database import AsyncDatabase
 
 from dedi_gateway.etc.enums import AuthMessageStatus
+from dedi_gateway.etc.errors import NetworkMessageNotFoundException
 from dedi_gateway.model.network_message import NetworkMessageRepository, AuthRequest, AuthInvite
-
-if TYPE_CHECKING:
-    from pymongo.asynchronous.database import AsyncDatabase
 
 
 class MongoNetworkMessageRepository(NetworkMessageRepository):
@@ -68,3 +67,35 @@ class MongoNetworkMessageRepository(NetworkMessageRepository):
                 docs.append(doc)
 
         return docs
+
+    async def get_received_request(self,
+                                   request_id: str,
+                                   ) -> Mapping[str, Any]:
+        payload = await self.received_requests.find_one({'request.metadata.messageId': request_id})
+
+        if not payload:
+            raise NetworkMessageNotFoundException(
+                f'Received request with ID {request_id} not found.'
+            )
+
+        return payload
+
+    async def update_request_status(self,
+                                    request_id: str,
+                                    status: AuthMessageStatus,
+                                    ) -> None:
+        result = await self.received_requests.update_one(
+            {'request.metadata.messageId': request_id},
+            {'$set': {'status': status.value}}
+        )
+
+        if result.matched_count == 0:
+            result = await self.sent_requests.update_one(
+                {'request.metadata.messageId': request_id},
+                {'$set': {'status': status.value}}
+            )
+
+        if result.matched_count == 0:
+            raise NetworkMessageNotFoundException(
+                f'Request with ID {request_id} not found.'
+            )

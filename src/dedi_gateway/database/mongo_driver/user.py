@@ -1,9 +1,6 @@
-from typing import TYPE_CHECKING
+from pymongo.asynchronous.database import AsyncDatabase
 
 from dedi_gateway.model.user import User, UserRepository
-
-if TYPE_CHECKING:
-    from pymongo.asynchronous.database import AsyncDatabase
 
 
 class MongoUserRepository(UserRepository):

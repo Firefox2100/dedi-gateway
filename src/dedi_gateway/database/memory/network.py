@@ -1,4 +1,6 @@
+from dedi_gateway.etc.errors import NetworkNotFoundException
 from dedi_gateway.model.network import Network, NetworkRepository
+from dedi_gateway.model.node import Node
 from .node import MemoryNodeRepository
 
 
@@ -14,10 +16,15 @@ class MemoryNetworkRepository(NetworkRepository):
         super().__init__(node_repository)
         self.db = db
 
-    async def get(self, network_id: str) -> Network | None:
+    async def get(self, network_id: str) -> Network:
         network_data = self.db.get(network_id)
 
-        return Network.from_dict(network_data) if network_data else None
+        if not network_data:
+            raise NetworkNotFoundException(
+                f'Network with ID {network_id} not found.'
+            )
+
+        return Network.from_dict(network_data)
 
     async def filter(self,
                      *,
@@ -50,3 +57,12 @@ class MemoryNetworkRepository(NetworkRepository):
             raise ValueError(f'Network with ID {network.network_id} does not exist.')
 
         self.db[network.network_id] = network.to_dict()
+
+    async def add_node(self, network_id: str, node: Node) -> None:
+        await self.node_repository.save(node)
+
+        if network_id not in self.db:
+            raise ValueError(f'Network with ID {network_id} does not exist.')
+
+        network_dict = self.db[network_id]
+        network_dict['nodeIds'].append(node.node_id)

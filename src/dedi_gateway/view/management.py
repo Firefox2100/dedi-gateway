@@ -148,7 +148,7 @@ async def get_network_requests():
 
     Filters can be applied to show only sent or received requests, pending
     or accepted requests, etc.
-    :return:
+    :return: A JSON list of network requests and their statuses.
     """
     db = get_active_db()
 
@@ -161,3 +161,19 @@ async def get_network_requests():
     )
 
     return auth_requests
+
+
+@management_blueprint.route('/requests/<request_id>', methods=['PATCH'])
+@exception_handler
+async def respond_to_request(request_id):
+    """
+    Respond to a join request or invite.
+    :param request_id: The ID of the request to respond to.
+    :return: A success message.
+    """
+    data = await request.get_json()
+    if not data:
+        return {'error': 'No data provided'}, 400
+
+    db = get_active_db()
+    auth_request = await db.messages.get_received_request(request_id)

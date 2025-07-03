@@ -2,7 +2,7 @@ import json
 import time
 import asyncio
 import secrets
-from quart import Blueprint, request, websocket, abort
+from quart import Blueprint, Response, request, websocket, abort
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG
 from dedi_gateway.etc.enums import MessageType
@@ -10,7 +10,7 @@ from dedi_gateway.etc.powlib import validate
 from dedi_gateway.cache import get_active_broker, get_active_cache
 from dedi_gateway.database import get_active_db
 from dedi_gateway.model.network_message import AuthRequest, AuthInvite
-from dedi_gateway.model.network_interface import AuthInterface
+from dedi_gateway.model.network_interface import AuthInterface, process_network_message
 
 
 service_blueprint = Blueprint("service", __name__)
@@ -41,7 +41,7 @@ async def get_challenge():
     timestamp = int(time.time())
 
     cache = get_active_cache()
-    await cache.store_challenge(
+    await cache.save_challenge(
         nonce=nonce,
         difficulty=difficulty,
         timestamp=timestamp,
@@ -202,8 +202,7 @@ async def service_websocket():
                     pong_event.set()
                     continue
 
-                #TODO: Implement the actual message handling logic
-                # await handle_client_message(node_id, data)
+                await process_network_message()
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -219,3 +218,38 @@ async def service_websocket():
         receive_task.cancel()
         await websocket.close(1000)
         raise
+
+
+@service_blueprint.route('/event', methods=['POST'])
+async def handle_sse():
+    """
+    Handle Server-Sent Events (SSE) for real-time updates.
+
+    This is the fallback method for connections that do not support WebSockets.
+    :return:
+    """
+    data = await request.get_json()
+
+    if not data:
+        abort(400, 'No data provided in request.')
+
+    node_id = data['nodeId']
+
+    async def event_stream():
+        broker = get_active_broker()
+        try:
+            while True:
+                message = await broker.get_message(node_id)
+
+                if message:
+                    yield f"data: {json.dumps(message)}\n\n"
+                else:
+                    # Ping the client and wait for pong
+                    yield "event: ping\ndata: {}\n\n"
+                    await asyncio.sleep(10)  # Wait before next ping
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            yield f"data: {{'error': '{str(e)}'}}\n\n"
+
+    return Response(event_stream(), content_type='text/event-stream')

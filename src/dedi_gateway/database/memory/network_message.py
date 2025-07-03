@@ -1,4 +1,7 @@
+from typing import Mapping, Any
+
 from dedi_gateway.etc.enums import AuthMessageStatus
+from dedi_gateway.etc.errors import NetworkMessageNotFoundException
 from dedi_gateway.model.network_message import NetworkMessageRepository, AuthRequest, AuthInvite
 
 
@@ -62,3 +65,32 @@ class MemoryNetworkMessageRepository(NetworkMessageRepository):
                     docs.append(request)
 
         return docs
+
+    async def get_received_request(self,
+                                   request_id: str,
+                                   ) -> Mapping[str, Any]:
+        received_requests = self.db.get('receivedRequests', {})
+        target_request = received_requests.get(request_id)
+
+        if not target_request:
+            raise NetworkMessageNotFoundException(
+                f'Received request with ID {request_id} not found.'
+            )
+
+        return target_request
+
+    async def update_request_status(self,
+                                    request_id: str,
+                                    status: AuthMessageStatus,
+                                    ) -> None:
+        received_requests = self.db.get('receivedRequests', {})
+        sent_requests = self.db.get('sentRequests', {})
+
+        if request_id in received_requests:
+            received_requests[request_id]['status'] = status.value
+        elif request_id in sent_requests:
+            sent_requests[request_id]['status'] = status.value
+        else:
+            raise NetworkMessageNotFoundException(
+                f'Request with ID {request_id} not found.'
+            )

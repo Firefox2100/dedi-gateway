@@ -1,10 +1,9 @@
-from typing import TYPE_CHECKING
+from pymongo.asynchronous.database import AsyncDatabase
 
+from dedi_gateway.etc.errors import NetworkNotFoundException
 from dedi_gateway.model.network import Network, NetworkRepository
+from dedi_gateway.model.node import Node
 from .node import MongoNodeRepository
-
-if TYPE_CHECKING:
-    from pymongo.asynchronous.database import AsyncDatabase
 
 
 class MongoNetworkRepository(NetworkRepository):
@@ -25,13 +24,15 @@ class MongoNetworkRepository(NetworkRepository):
         self.db = db
         self.collection = db['networks']
 
-    async def get(self, network_id: str) -> Network | None:
+    async def get(self, network_id: str) -> Network:
         network_data = await self.collection.find_one({'networkId': network_id})
 
         if network_data:
             return Network.from_dict(network_data)
 
-        return None
+        raise NetworkNotFoundException(
+            f'Network with ID {network_id} not found.'
+        )
 
     async def filter(self,
                      *,
@@ -67,4 +68,12 @@ class MongoNetworkRepository(NetworkRepository):
         await self.collection.update_one(
             {'networkId': network.network_id},
             {'$set': network.to_dict()}
+        )
+
+    async def add_node(self, network_id: str, node: Node) -> None:
+        await self.node_repository.save(node)
+
+        await self.collection.update_one(
+            {'networkId': network_id},
+            {'$addToSet': {'nodeIds': node.node_id}}
         )
