@@ -1,3 +1,6 @@
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
 from dedi_gateway.etc.consts import SERVICE_CONFIG
 from dedi_gateway.etc.errors import ConfigurationParsingException
 
@@ -6,6 +9,30 @@ class Kms:
     """
     Abstract interface for Key Management Service (KMS) operations.
     """
+    @staticmethod
+    def _generate_rsa_key_pair() -> tuple[str, str]:
+        """
+        Utility method to generate an RSA-4096 key pair.
+        :return: A tuple containing the private key and public key in PEM format.
+        """
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=4096,
+        )
+        public_key = private_key.public_key()
+
+        private_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        public_pem = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+
+        return private_pem.decode(), public_pem.decode()
+
     async def generate_user_key(self, user_id: str) -> str | None:
         """
         Generate a user-specific key pair for encryption and signing.
@@ -84,6 +111,12 @@ def get_active_kms() -> Kms | None:
         )
 
         _active_kms = HcvKms()
+
+        return _active_kms
+    elif SERVICE_CONFIG.kms_driver == 'memory':
+        from .memory import MemoryKms
+
+        _active_kms = MemoryKms()
 
         return _active_kms
     else:

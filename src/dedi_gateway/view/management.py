@@ -1,6 +1,7 @@
 from quart import Blueprint, request
 
 from dedi_gateway.etc.utils import exception_handler
+from dedi_gateway.kms import get_active_kms
 from dedi_gateway.database import get_active_db
 from dedi_gateway.model import Network
 
@@ -43,8 +44,17 @@ async def create_network():
 
     network = Network.from_dict(data)
 
+    if network.central_node:
+        if network.central_node != network.instance_id:
+            return {
+                'error': f'Network with central node {network.central_node} cannot be created. '
+                          'Central node must be the same as the instance ID.'
+            }
+
     db = get_active_db()
+    kms = get_active_kms()
     await db.networks.save(network)
+    await kms.generate_network_management_key(network.network_id)
 
     return network.to_dict(), 201
 

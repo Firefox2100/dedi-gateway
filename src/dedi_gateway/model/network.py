@@ -94,7 +94,7 @@ class Network(BaseModel):
             visible=payload.get('visible', False),
             registered=payload.get('registered', False),
             instance_id=instance_id,
-            central_node=payload.get('centralNode', False),
+            central_node=payload.get('centralNode', None),
         )
 
     def to_dict(self) -> dict:

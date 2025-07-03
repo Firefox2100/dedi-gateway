@@ -2,7 +2,7 @@ import hvac
 from hvac.exceptions import InvalidRequest, InvalidPath
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG
-from dedi_gateway.etc.errors import KmsKeyManagementException, NetworkRequestFailedException
+from dedi_gateway.etc.errors import KmsKeyManagementException
 from .kms import Kms
 
 
@@ -58,7 +58,7 @@ class HcvKms(Kms):
                 mount_point=SERVICE_CONFIG.vault_transit_engine,
             )
         except InvalidRequest as e:
-            raise NetworkRequestFailedException(
+            raise KmsKeyManagementException(
                 f'Unexpected error while generating network key for '
                 f'{network_id} in HashiCorp Vault.',
             ) from e
@@ -70,6 +70,20 @@ class HcvKms(Kms):
         )
 
         return await self.get_local_user_public_key(network_id)
+
+    async def generate_network_management_key(self, network_id: str) -> tuple[str, str]:
+        private_key, public_key = self._generate_rsa_key_pair()
+
+        self.client.secrets.kv.v2.create_or_update_secret(
+            path=f'{SERVICE_CONFIG.vault_kv_path}/network/{network_id}',
+            secret={
+                'privateKey': private_key,
+                'publicKey': public_key,
+            },
+            mount_point=SERVICE_CONFIG.vault_kv_engine,
+        )
+
+        return private_key, public_key
 
     async def get_local_user_public_key(self,
                                         user_id: str,

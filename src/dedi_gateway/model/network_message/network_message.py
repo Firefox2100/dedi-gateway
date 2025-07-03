@@ -7,6 +7,7 @@ class NetworkMessage(BaseModel):
     """
     Base class for a Network Message
     """
+    child_registry = {}
     message_type: MessageType = None
 
     def __init__(self,

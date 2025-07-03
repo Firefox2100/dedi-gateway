@@ -36,7 +36,8 @@ class ServiceConfig(BaseSettings):
     )
     challenge_difficulty: int = Field(
         22,
-        description='Difficulty level for Proof of Work challenges, by how many leading zeros are required in the hash',
+        description='Difficulty level for Proof of Work challenges, '
+                    'by how many leading zeros are required in the hash',
     )
 
     database_driver: str = Field(
@@ -78,9 +79,11 @@ class ServiceConfig(BaseSettings):
         description='URL for the HashiCorp Vault service',
     )
     vault_role_id: str = Field(
+        'dedi-gateway-role',
         description='Role ID for the HashiCorp Vault service',
     )
     vault_secret_id: str = Field(
+        'dedi-gateway-secret',
         description='Secret ID for the HashiCorp Vault service',
     )
     vault_kv_engine: str = Field(
