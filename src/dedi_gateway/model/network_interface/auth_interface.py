@@ -239,6 +239,12 @@ class AuthInterface(NetworkInterface):
                 url=f'{request.node.url}/service/responses',
                 payload=auth_response.to_dict(),
             )
+
+            if approve:
+                await self.establish_connection(
+                    network_id=request.metadata.network_id,
+                    node=request.node,
+                )
         except NetworkRequestFailedException:
             # Sending failed, wait for the requester to poll for the response
             pass

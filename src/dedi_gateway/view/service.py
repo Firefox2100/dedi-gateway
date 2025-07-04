@@ -4,9 +4,10 @@ import asyncio
 import secrets
 from quart import Blueprint, Response, request, websocket, abort
 
-from dedi_gateway.etc.consts import SERVICE_CONFIG
+from dedi_gateway.etc.consts import SERVICE_CONFIG, LOGGER
 from dedi_gateway.etc.enums import MessageType
 from dedi_gateway.etc.powlib import validate
+from dedi_gateway.etc.utils import exception_handler
 from dedi_gateway.cache import get_active_broker, get_active_cache
 from dedi_gateway.database import get_active_db
 from dedi_gateway.model.network_message import AuthRequest, AuthInvite
@@ -17,6 +18,7 @@ service_blueprint = Blueprint("service", __name__)
 
 
 @service_blueprint.route('/status', methods=['GET'])
+@exception_handler
 async def get_service_status():
     """
     Get the status of the service.
@@ -28,6 +30,7 @@ async def get_service_status():
 
 
 @service_blueprint.route('/challenge', methods=['GET'])
+@exception_handler
 async def get_challenge():
     """
     Generate a Proof of Work challenge for request validation.
@@ -39,6 +42,13 @@ async def get_challenge():
     nonce = secrets.token_hex(16)
     difficulty = SERVICE_CONFIG.challenge_difficulty
     timestamp = int(time.time())
+
+    LOGGER.debug(
+        'Generating challenge with nonce: %s, difficulty: %d, timestamp: %d',
+        nonce,
+        difficulty,
+        timestamp
+    )
 
     cache = get_active_cache()
     await cache.save_challenge(
@@ -54,6 +64,7 @@ async def get_challenge():
 
 
 @service_blueprint.route('/networks', methods=['GET'])
+@exception_handler
 async def get_visible_networks():
     """
     Get a list of visible networks to apply for joining.
@@ -83,10 +94,13 @@ async def get_visible_networks():
 
         network_response.append(payload)
 
+    LOGGER.debug('Returning %d visible networks', len(network_response))
+
     return network_response
 
 
 @service_blueprint.route('/requests', methods=['POST'])
+@exception_handler
 async def submit_request():
     """
     Submit a join request or invite to the service.
@@ -123,6 +137,16 @@ async def submit_request():
             request=auth_request,
         )
 
+        LOGGER.info(
+            'Received auth request from node %s for network %s',
+            auth_request.node.node_id,
+            auth_request.metadata.network_id,
+        )
+        LOGGER.debug(
+            'Auth request content: %s',
+            auth_request.to_dict()
+        )
+
         reachable = await AuthInterface().check_node_connectivity(auth_request.node.url)
     elif message_type == MessageType.AUTH_INVITE:
         # Invite to join a network
@@ -131,9 +155,26 @@ async def submit_request():
             request=auth_invite,
         )
 
+        LOGGER.info(
+            'Received auth invite from node %s for network %s',
+            auth_invite.node.node_id,
+            auth_invite.metadata.network_id,
+        )
+        LOGGER.debug(
+            'Auth invite content: %s',
+            auth_invite.to_dict()
+        )
+
         reachable = await AuthInterface().check_node_connectivity(auth_invite.node.url)
     else:
         return abort(400, 'Invalid message type specified.')
+
+    LOGGER.info(
+        'Destination node %s with URL %s is reachable: %s',
+        data['node']['nodeId'],
+        data['node']['url'],
+        str(reachable),
+    )
 
     return {
         'status': 'success',
@@ -142,6 +183,7 @@ async def submit_request():
 
 
 @service_blueprint.websocket('/websocket')
+@exception_handler
 async def service_websocket():
     """
     WebSocket endpoint for server-to-server communication.
@@ -163,6 +205,8 @@ async def service_websocket():
     pong_event = asyncio.Event()
     pong_event.set()
 
+    LOGGER.info('Received WebSocket connection from node %s', node_id)
+
     async def send_loop():
         while True:
             try:
@@ -171,6 +215,7 @@ async def service_websocket():
                 if not message:
                     # Ping the client and wait for pong
                     pong_event.clear()
+                    LOGGER.debug('Pinging client for node %s', node_id)
                     await websocket.send(json.dumps({'ping': True}))
 
                     try:
@@ -180,10 +225,17 @@ async def service_websocket():
                         abort(408, 'Client did not respond to ping')
                 else:
                     await pong_event.wait()
+                    LOGGER.info(
+                        'Sending message %s to node %s',
+                        message['metadata']['messageId'],
+                        node_id
+                    )
+                    LOGGER.debug('Message content: %s', message)
                     await websocket.send(json.dumps(message))
 
                 await asyncio.sleep(0.1)
             except asyncio.CancelledError:
+                LOGGER.info('Send loop cancelled for node %s', node_id)
                 raise
             except Exception:
                 abort(500, 'An error occurred while processing the message.')
@@ -194,19 +246,26 @@ async def service_websocket():
                 client_message = await websocket.receive()
                 try:
                     data = json.loads(client_message)
+                    LOGGER.info('Received message from node %s', node_id)
+                    LOGGER.debug('Message content: %s', data)
                 except json.JSONDecodeError:
                     await websocket.send(json.dumps({'error': 'Invalid JSON format'}))
                     continue
 
                 if data.get('pong'):
                     pong_event.set()
+                    LOGGER.debug('Received pong from node %s', node_id)
                     continue
 
-                await process_network_message()
+                await process_network_message(data)
             except asyncio.CancelledError:
+                LOGGER.info('Receive loop cancelled for node %s', node_id)
                 raise
-            except Exception:
-                await websocket.send(json.dumps({'error': 'Unhandled error receiving message'}))
+            except Exception as e:
+                await websocket.send(
+                    json.dumps({'error': f'Unhandled error receiving message: {str(e)}'})
+                )
+                LOGGER.exception('Unhandled error receiving message from node %s', node_id)
 
     send_task = asyncio.create_task(send_loop())
     receive_task = asyncio.create_task(receive_loop())
@@ -221,6 +280,7 @@ async def service_websocket():
 
 
 @service_blueprint.route('/event', methods=['POST'])
+@exception_handler
 async def handle_sse():
     """
     Handle Server-Sent Events (SSE) for real-time updates.
@@ -235,6 +295,8 @@ async def handle_sse():
 
     node_id = data['nodeId']
 
+    LOGGER.info('Received SSE connection from node %s', node_id)
+
     async def event_stream():
         broker = get_active_broker()
         try:
@@ -242,14 +304,23 @@ async def handle_sse():
                 message = await broker.get_message(node_id)
 
                 if message:
+                    LOGGER.info(
+                        'Sending message %s to node %s via SSE',
+                        message['metadata']['messageId'],
+                        node_id
+                    )
                     yield f"data: {json.dumps(message)}\n\n"
                 else:
                     # Ping the client and wait for pong
+                    LOGGER.debug('Pinging client for node %s via SSE', node_id)
                     yield "event: ping\ndata: {}\n\n"
-                    await asyncio.sleep(10)  # Wait before next ping
+
+                await asyncio.sleep(0.1)
         except asyncio.CancelledError:
+            LOGGER.info('Event stream cancelled for node %s', node_id)
             raise
         except Exception as e:
+            LOGGER.exception('Unhandled error in event stream for node %s: %s', node_id, str(e))
             yield f"data: {{'error': '{str(e)}'}}\n\n"
 
     return Response(event_stream(), content_type='text/event-stream')

@@ -1,5 +1,6 @@
 from functools import wraps
 from quart import jsonify
+from werkzeug.exceptions import HTTPException
 
 from dedi_gateway.etc.consts import LOGGER
 from dedi_gateway.etc.errors import DediGatewayException
@@ -19,6 +20,13 @@ def exception_handler(f):
                 response.headers['WWW-Authenticate'] = 'Signature realm="dedi-link"'
 
             LOGGER.exception('Dedi Gateway Exception: %s', e.message)
+
+            return response
+        except HTTPException as e:
+            response = jsonify({'error': e.description})
+            response.status_code = e.code
+
+            LOGGER.exception('HTTP Exception: %s', e.description)
 
             return response
         except Exception as e:
