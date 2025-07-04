@@ -42,6 +42,27 @@ class MemoryKms(Kms):
 
         return private_key, public_key
 
+    async def store_network_management_key(self,
+                                           public_key: str,
+                                           network_id: str,
+                                           private_key: str | None = None,
+                                           ):
+        payload: dict[str, str | dict] = {
+            'publicKey': public_key,
+        }
+        if private_key:
+            payload['privateKey'] = private_key
+
+        if network_id in self._network_management_keys:
+            payload['previousKey'] = {
+                'publicKey': self._network_management_keys[network_id]['publicKey'],
+            }
+            if private_key:
+                payload['previousKey']['privateKey'] = \
+                    self._network_management_keys[network_id]['privateKey']
+
+        self._network_management_keys[network_id] = payload
+
     async def get_local_user_public_key(self,
                                         user_id: str,
                                         previous_version=False,
@@ -83,3 +104,43 @@ class MemoryKms(Kms):
             return network_keys['previousKey']['publicKey']
 
         return network_keys['publicKey']
+
+    async def get_network_management_public_key(self,
+                                                network_id: str,
+                                                previous_version=False,
+                                                ) -> str:
+        network_keys = self._network_management_keys.get(network_id)
+
+        if not network_keys:
+            raise KmsKeyManagementException(
+                f'Network management key for {network_id} not found in memory KMS.'
+            )
+
+        if previous_version:
+            if 'previousKey' not in network_keys:
+                raise KmsKeyManagementException(
+                    f'No previous version of key {network_id} found in memory KMS.'
+                )
+
+            return network_keys['previousKey']['publicKey']
+
+        return network_keys['publicKey']
+
+    async def get_network_management_private_key(self,
+                                                 network_id: str,
+                                                 ):
+        network_keys = self._network_management_keys.get(network_id)
+
+        if not network_keys:
+            raise KmsKeyManagementException(
+                f'Network management key for {network_id} not found in memory KMS.'
+            )
+
+        private_key = network_keys.get('privateKey')
+
+        if not private_key:
+            raise KmsKeyManagementException(
+                f'Private key for network management {network_id} not found in memory KMS.'
+            )
+
+        return private_key

@@ -268,7 +268,7 @@ class NetworkInterface:
 
         LOGGER.info('Establishing connection to node %s', node.node_id)
 
-        if self.check_node_connectivity(
+        if await self.check_node_connectivity(
             node.url,
         ):
             LOGGER.info(

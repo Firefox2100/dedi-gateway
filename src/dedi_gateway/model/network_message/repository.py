@@ -54,6 +54,16 @@ class NetworkMessageRepository:
         """
         raise NotImplementedError
 
+    async def get_sent_request(self,
+                               request_id: str,
+                               ) -> Mapping[str, Any]:
+        """
+        Retrieve a specific sent request by its ID.
+        :param request_id: The ID of the request to retrieve.
+        :return: The request data if found, otherwise None.
+        """
+        raise NotImplementedError
+
     async def update_request_status(self,
                                     request_id: str,
                                     status: AuthMessageStatus,

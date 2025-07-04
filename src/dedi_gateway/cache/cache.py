@@ -10,7 +10,6 @@ class Cache:
     async def save_challenge(self,
                              nonce: str,
                              difficulty: int,
-                             timestamp: int,
                              ):
         """
         Store a generated challenge in the cache.

@@ -79,6 +79,19 @@ class MemoryNetworkMessageRepository(NetworkMessageRepository):
 
         return target_request
 
+    async def get_sent_request(self,
+                               request_id: str,
+                               ) -> Mapping[str, Any]:
+        sent_requests = self.db.get('sentRequests', {})
+        target_request = sent_requests.get(request_id)
+
+        if not target_request:
+            raise NetworkMessageNotFoundException(
+                f'Sent request with ID {request_id} not found.'
+            )
+
+        return target_request
+
     async def update_request_status(self,
                                     request_id: str,
                                     status: AuthMessageStatus,

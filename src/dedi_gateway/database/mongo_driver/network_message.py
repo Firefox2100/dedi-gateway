@@ -80,6 +80,18 @@ class MongoNetworkMessageRepository(NetworkMessageRepository):
 
         return payload
 
+    async def get_sent_request(self,
+                               request_id: str,
+                               ) -> Mapping[str, Any]:
+        payload = await self.sent_requests.find_one({'request.metadata.messageId': request_id})
+
+        if not payload:
+            raise NetworkMessageNotFoundException(
+                f'Sent request with ID {request_id} not found.'
+            )
+
+        return payload
+
     async def update_request_status(self,
                                     request_id: str,
                                     status: AuthMessageStatus,

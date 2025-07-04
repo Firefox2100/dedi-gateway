@@ -58,6 +58,7 @@ async def create_network():
     kms = get_active_kms()
     await db.networks.save(network)
     await kms.generate_network_management_key(network.network_id)
+    await kms.generate_network_node_key(network.network_id)
 
     return network.to_dict(), 201
 

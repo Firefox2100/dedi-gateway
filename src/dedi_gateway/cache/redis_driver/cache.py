@@ -34,7 +34,6 @@ class RedisCache(Cache):
     async def save_challenge(self,
                              nonce: str,
                              difficulty: int,
-                             timestamp: int,
                              ):
         await self.db.set(
             f'challenge:{nonce}',

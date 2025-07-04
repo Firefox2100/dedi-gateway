@@ -32,6 +32,82 @@ class HcvKms(Kms):
         """
         cls._client = client
 
+    async def _read_transit_public_key(self,
+                                       key_name: str,
+                                       previous_version: bool = False,
+                                       ):
+        """
+        Helper method to read the public key from the HashiCorp Vault Transit engine.
+        :param key_name: The name of the key to read.
+        :param previous_version: If True, retrieves the previous version of the secret.
+        :return: The secret data as a dictionary.
+        """
+        try:
+            key_info = self.client.secrets.transit.read_key(
+                name=key_name,
+                mount_point=SERVICE_CONFIG.vault_transit_engine,
+            )
+
+            versions = map(int, key_info['data']['keys'].keys())
+            latest_version = max(versions)
+
+            if previous_version:
+                latest_version -= 1
+
+            if latest_version < 1:
+                raise KmsKeyManagementException(
+                    f'No previous version of key {key_name} found in HashiCorp Vault.',
+                    status_code=404,
+                )
+
+            return key_info['data']['keys'][str(latest_version)]['public_key']
+        except (InvalidPath, ValueError) as e:
+            raise KmsKeyManagementException(
+                f'Key {key_name} not found in HashiCorp Vault.',
+                status_code=404,
+            ) from e
+
+    async def _read_kv_secret(self,
+                              path: str,
+                              previous_version: bool = False,
+                              ) -> dict:
+        """
+        Helper method to read a secret from the HashiCorp Vault KV store.
+        :param path: The path to the secret in the KV store.
+        :param previous_version: If True, retrieves the previous version of the secret.
+        :return: The secret data as a dictionary.
+        """
+        try:
+            # Read the secret metadata to determine the latest version
+            secret_metadata = (self.client.secrets.kv.read_secret_metadata(
+                path=f'{SERVICE_CONFIG.vault_kv_path}/{path}',
+                mount_point=SERVICE_CONFIG.vault_kv_engine,
+            ))
+
+            latest_version = max([int(v) for v in secret_metadata['versions'].keys()])
+            if previous_version:
+                latest_version -= 1
+
+            if latest_version < 1:
+                raise KmsKeyManagementException(
+                    f'Unable to find previous version of secret {path} in HashiCorp Vault.',
+                    status_code=404,
+                )
+
+            # Read the specific version of the secret
+            secret = self.client.secrets.kv.v2.read_secret_version(
+                path=f'{SERVICE_CONFIG.vault_kv_path}/{path}',
+                version=latest_version,
+                mount_point=SERVICE_CONFIG.vault_kv_engine,
+            )
+
+            return secret['data']['data']
+        except InvalidPath as e:
+            raise KmsKeyManagementException(
+                f'Secret {path} not found in HashiCorp Vault.',
+                status_code=404,
+            ) from e
+
     async def generate_user_key(self, user_id: str) -> str | None:
         try:
             self.client.secrets.transit.create_key(
@@ -85,60 +161,62 @@ class HcvKms(Kms):
 
         return private_key, public_key
 
+    async def store_network_management_key(self,
+                                           public_key: str,
+                                           network_id: str,
+                                           private_key: str | None = None,
+                                           ):
+        payload = {
+            'publicKey': public_key,
+        }
+        if private_key:
+            payload['privateKey'] = private_key
+
+        self.client.secrets.kv.v2.create_or_update_secret(
+            path=f'{SERVICE_CONFIG.vault_kv_path}/network/{network_id}',
+            secret=payload,
+            mount_point=SERVICE_CONFIG.vault_kv_engine,
+        )
+
     async def get_local_user_public_key(self,
                                         user_id: str,
                                         previous_version = False,
                                         ) -> str:
-        try:
-            key_info = self.client.secrets.transit.read_key(
-                name=f'user-{user_id}',
-                mount_point=SERVICE_CONFIG.vault_transit_engine,
-            )
-
-            versions = map(int, key_info['data']['keys'].keys())
-            latest_version = max(versions)
-
-            if previous_version:
-                latest_version -= 1
-
-            if latest_version < 0:
-                raise KmsKeyManagementException(
-                    f'No previous version of key {user_id} found in HashiCorp Vault.',
-                    status_code=404,
-                )
-
-            return key_info['data']['keys'][str(latest_version)]['public_key']
-        except (InvalidPath, ValueError) as e:
-            raise KmsKeyManagementException(
-                f'User key {user_id} not found in HashiCorp Vault.',
-                status_code=404,
-            ) from e
+        return await self._read_transit_public_key(
+            key_name=f'user-{user_id}',
+            previous_version=previous_version,
+        )
 
     async def get_network_node_public_key(self,
                                           network_id: str,
                                           previous_version=False,
                                           ) -> str:
-        try:
-            key_info = self.client.secrets.transit.read_key(
-                name=f'network-{network_id}',
-                mount_point=SERVICE_CONFIG.vault_transit_engine,
-            )
+        return await self._read_transit_public_key(
+            key_name=f'network-{network_id}',
+            previous_version=previous_version,
+        )
 
-            versions = map(int, key_info['data']['keys'].keys())
-            latest_version = max(versions)
+    async def get_network_management_public_key(self,
+                                                network_id: str,
+                                                previous_version=False,
+                                                ) -> str:
+        secret_data = await self._read_kv_secret(
+            path=f'network/{network_id}',
+            previous_version=previous_version,
+        )
+        return secret_data['publicKey']
 
-            if previous_version:
-                latest_version -= 1
+    async def get_network_management_private_key(self,
+                                                 network_id: str,
+                                                 ):
+        secret_data = await self._read_kv_secret(
+            path=f'network/{network_id}',
+        )
 
-            if latest_version < 0:
-                raise KmsKeyManagementException(
-                    f'No previous version of key {network_id} found in HashiCorp Vault.',
-                    status_code=404,
-                )
+        private_key = secret_data.get('privateKey')
 
-            return key_info['data']['keys'][str(latest_version)]['public_key']
-        except (InvalidPath, ValueError) as e:
+        if not private_key:
             raise KmsKeyManagementException(
-                f'Network key {network_id} not found in HashiCorp Vault.',
+                f'Private key for network {network_id} not found in HashiCorp Vault.',
                 status_code=404,
-            ) from e
+            )

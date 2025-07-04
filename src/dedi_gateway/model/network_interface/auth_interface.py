@@ -1,8 +1,9 @@
 import time
+import asyncio
 from copy import deepcopy
 from uuid import uuid4
 
-from dedi_gateway.etc.consts import SERVICE_CONFIG
+from dedi_gateway.etc.consts import SERVICE_CONFIG, LOGGER
 from dedi_gateway.etc.errors import JoiningNetworkException, InvitingNodeException, \
     NetworkRequestFailedException
 from dedi_gateway.etc.powlib import solve
@@ -67,7 +68,7 @@ class AuthInterface(NetworkInterface):
 
         # Create a placeholder network
         network = Network(
-            network_id=network_id,
+            network_id=f'pending-{network_id}',
             network_name=target_network['networkName'],
             description=target_network['description'],
             visible=True,
@@ -216,7 +217,19 @@ class AuthInterface(NetworkInterface):
                 ),
                 network=network,
                 justification=justification or 'No justification provided',
+                management_key={
+                    'publicKey': await kms.get_network_management_public_key(
+                        network_id=request.metadata.network_id,
+                    )
+                }
             )
+
+            if network.central_node is None:
+                # Decentralised network, the management key can be shared
+                auth_response.management_key['privateKey'] = \
+                    await kms.get_network_management_private_key(
+                        network_id=request.metadata.network_id,
+                    )
 
             # Save the node to the network
             new_node = deepcopy(request.node)
@@ -241,13 +254,20 @@ class AuthInterface(NetworkInterface):
                 payload=auth_response.to_dict(),
             )
 
+            await asyncio.sleep(1)
+
             if approve:
                 await self.establish_connection(
                     network_id=request.metadata.network_id,
                     node=request.node,
                 )
-        except NetworkRequestFailedException:
+        except NetworkRequestFailedException as e:
             # Sending failed, wait for the requester to poll for the response
+            LOGGER.info(
+                'Failed to send join request response to %s: %s',
+                request.node.url,
+                str(e),
+            )
             pass
 
     async def process_join_invite(self,

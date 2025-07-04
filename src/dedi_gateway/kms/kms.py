@@ -57,6 +57,19 @@ class Kms:
         """
         raise NotImplementedError
 
+    async def store_network_management_key(self,
+                                           public_key: str,
+                                           network_id: str,
+                                           private_key: str | None = None,
+                                           ):
+        """
+        Store the network management key pair in the KMS.
+        :param public_key: The public key to store.
+        :param network_id: The network ID to associate with the key.
+        :param private_key: The private key to store, if applicable.
+        """
+        raise NotImplementedError
+
     async def get_local_user_public_key(self,
                                         user_id: str,
                                         previous_version=False,
@@ -78,6 +91,28 @@ class Kms:
         :param network_id: The network ID to retrieve the public key for.
         :param previous_version: If True, retrieves the previous version of the key.
         :return: The network's public key in PEM format.
+        """
+        raise NotImplementedError
+
+    async def get_network_management_public_key(self,
+                                                network_id: str,
+                                                previous_version=False,
+                                                ) -> str:
+        """
+        Get the public key for a network management.
+        :param network_id: The network ID to retrieve the public key for.
+        :param previous_version: If True, retrieves the previous version of the key.
+        :return: The network management's public key in PEM format.
+        """
+        raise NotImplementedError
+
+    async def get_network_management_private_key(self,
+                                                 network_id: str,
+                                                 ) -> str:
+        """
+        Get the private key for a network management.
+        :param network_id: The network ID to retrieve the private key for.
+        :return: The network management's private key in PEM format.
         """
         raise NotImplementedError
 

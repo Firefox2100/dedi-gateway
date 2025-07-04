@@ -1,16 +1,16 @@
 import json
-import time
 import asyncio
 import secrets
 from quart import Blueprint, Response, request, websocket, abort
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG, LOGGER
-from dedi_gateway.etc.enums import MessageType
+from dedi_gateway.etc.enums import MessageType, AuthMessageStatus
 from dedi_gateway.etc.powlib import validate
 from dedi_gateway.etc.utils import exception_handler
 from dedi_gateway.cache import get_active_broker, get_active_cache
 from dedi_gateway.database import get_active_db
-from dedi_gateway.model.network_message import AuthRequest, AuthInvite
+from dedi_gateway.kms import get_active_kms
+from dedi_gateway.model.network_message import AuthRequest, AuthInvite, AuthRequestResponse
 from dedi_gateway.model.network_interface import AuthInterface, process_network_message
 
 
@@ -41,20 +41,17 @@ async def get_challenge():
     """
     nonce = secrets.token_hex(16)
     difficulty = SERVICE_CONFIG.challenge_difficulty
-    timestamp = int(time.time())
 
     LOGGER.debug(
-        'Generating challenge with nonce: %s, difficulty: %d, timestamp: %d',
+        'Generating challenge with nonce: %s, difficulty: %d',
         nonce,
-        difficulty,
-        timestamp
+        difficulty
     )
 
     cache = get_active_cache()
     await cache.save_challenge(
         nonce=nonce,
         difficulty=difficulty,
-        timestamp=timestamp,
     )
 
     return {
@@ -179,6 +176,92 @@ async def submit_request():
     return {
         'status': 'success',
         'reachable': reachable,
+    }
+
+
+@service_blueprint.route('/requests/<request_id>', methods=['GET'])
+@exception_handler
+async def get_request_status(request_id):
+    """
+    Get the status of a specific join request or invite.
+
+    This is used when the requester node is not reachable, and it shall check the status
+    of the request it sent earlier.
+    :param request_id: The ID of the request to check.
+    :return:
+    """
+
+
+
+@service_blueprint.route('/responses', methods=['POST'])
+@exception_handler
+async def submit_response():
+    """
+    Submit a response to a join request or invite.
+
+    This is used for this node to know that the other party has processed the request
+    :return:
+    """
+    data = await request.get_json()
+
+    if not data:
+        abort(400, 'No data provided in request.')
+
+    db = get_active_db()
+    kms = get_active_kms()
+
+    request_id = data['metadata']['messageId']
+    sent_request = await db.messages.get_sent_request(request_id)
+
+    sent_request_type = MessageType(sent_request['request']['messageType'])
+    response_type = MessageType(data['messageType'])
+
+    if sent_request_type == MessageType.AUTH_REQUEST and \
+            response_type == MessageType.AUTH_REQUEST_RESPONSE:
+        request_obj = AuthRequest.from_dict(sent_request['request'])
+        response_obj = AuthRequestResponse.from_dict(data)
+        local_network = await db.networks.get(f'pending-{request_obj.metadata.network_id}')
+        # Compare the network information and update the local network placeholder
+        if not all([
+            local_network.network_name == response_obj.network.network_name,
+            local_network.description == response_obj.network.description,
+            local_network.registered == response_obj.network.registered,
+        ]):
+            # Data mismatch
+            abort(400, 'Response data does not match the original request.')
+
+        if response_obj.approved:
+            local_network.central_node = response_obj.network.central_node
+            local_network.visible = response_obj.network.visible
+            local_network.network_id = response_obj.network.network_id
+
+            await db.networks.save(local_network)
+            await db.networks.add_node(
+                network_id=local_network.network_id,
+                node=response_obj.node,
+            )
+
+            await kms.store_network_management_key(
+                network_id=local_network.network_id,
+                public_key=response_obj.management_key['publicKey'],
+                private_key=response_obj.management_key.get('privateKey', None),
+            )
+
+        await db.networks.delete(f'pending-{request_obj.metadata.network_id}')
+        await db.messages.update_request_status(
+            request_id=request_id,
+            status=AuthMessageStatus.ACCEPTED \
+                if response_obj.approved else AuthMessageStatus.REJECTED,
+        )
+    elif sent_request_type == MessageType.AUTH_INVITE and \
+            response_type == MessageType.AUTH_INVITE_RESPONSE:
+        # TODO: Implement invite response handling
+        pass
+    else:
+        abort(400, 'Invalid message type specified for response.')
+
+    return {
+        'status': 'success',
     }
 
 
