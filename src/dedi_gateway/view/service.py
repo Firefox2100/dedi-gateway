@@ -172,7 +172,7 @@ async def submit_request():
     LOGGER.info(
         'Destination node %s with URL %s is reachable: %s',
         data['node']['nodeId'],
-        data['node']['url'],
+        data['node']['nodeUrl'],
         str(reachable),
     )
 

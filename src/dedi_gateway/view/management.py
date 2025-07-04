@@ -1,10 +1,11 @@
 from quart import Blueprint, request
 
-from dedi_gateway.etc.enums import AuthMessageStatus
+from dedi_gateway.etc.enums import AuthMessageStatus, MessageType
 from dedi_gateway.etc.utils import exception_handler
 from dedi_gateway.kms import get_active_kms
 from dedi_gateway.database import get_active_db
 from dedi_gateway.model import Network
+from dedi_gateway.model.network_message import AuthRequest, AuthInvite
 from dedi_gateway.model.network_interface import AuthInterface
 
 management_blueprint = Blueprint('management', __name__)
@@ -177,3 +178,31 @@ async def respond_to_request(request_id):
 
     db = get_active_db()
     auth_request = await db.messages.get_received_request(request_id)
+
+    if auth_request['status'] != AuthMessageStatus.PENDING.value:
+        return {'error': 'Request has already been processed'}, 400
+
+    message_payload = auth_request['request']
+    message_type = MessageType(message_payload['messageType'])
+    auth_interface = AuthInterface()
+
+    if message_type == MessageType.AUTH_REQUEST:
+        request_obj = AuthRequest.from_dict(message_payload)
+        await auth_interface.process_join_request(
+            request=request_obj,
+            approve=data.get('approve', False),
+            justification=data.get('justification', None)
+        )
+
+        return {'message': 'Join request processed successfully'}, 200
+    elif message_type == MessageType.AUTH_INVITE:
+        invite_obj = AuthInvite.from_dict(message_payload)
+        await auth_interface.process_join_invite(
+            invite=invite_obj,
+            approve=data.get('approve', False),
+            justification=data.get('justification', None)
+        )
+
+        return {'message': 'Invite processed successfully'}, 200
+
+    return {'error': 'Invalid request type'}, 400

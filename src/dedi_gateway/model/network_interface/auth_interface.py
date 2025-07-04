@@ -183,6 +183,7 @@ class AuthInterface(NetworkInterface):
         Process a received join request from another node.
         :param request: The join request to process
         :param approve: Whether to approve or reject the request
+        :param justification: Optional justification for the decision
         :return:
         """
         db = get_active_db()
@@ -248,3 +249,16 @@ class AuthInterface(NetworkInterface):
         except NetworkRequestFailedException:
             # Sending failed, wait for the requester to poll for the response
             pass
+
+    async def process_join_invite(self,
+                                  invite: AuthInvite,
+                                  approve: bool,
+                                  justification: str = None,
+                                  ):
+        """
+        Process a received join invite from another node.
+        :param invite: The join invite to process
+        :param approve: Whether to approve or reject the invite
+        :param justification: The justification for the decision
+        :return:
+        """
