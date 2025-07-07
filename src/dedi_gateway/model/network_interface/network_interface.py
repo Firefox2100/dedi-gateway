@@ -10,10 +10,61 @@ import websockets
 
 from dedi_gateway.etc.consts import LOGGER
 from dedi_gateway.etc.enums import ConnectivityType, TransportType
-from dedi_gateway.etc.errors import NetworkRequestFailedException
+from dedi_gateway.etc.errors import NetworkRequestFailedException, NodeNotFoundException, \
+    NodeNotApprovedException, NetworkMessageSignatureException
 from dedi_gateway.cache import get_active_broker, get_active_cache
+from dedi_gateway.database import get_active_db
+from dedi_gateway.kms import get_active_kms
 from dedi_gateway.model.node import Node
 from dedi_gateway.model.route import Route
+from dedi_gateway.model.network_message import NetworkMessage, AuthConnect, MessageMetadata
+
+
+async def authenticate_network_message(message: NetworkMessage,
+                                       signature: str | None = None,
+                                       ):
+    """
+    Authenticate the incoming network message.
+    :param message: The network message to authenticate.
+    :param signature: The signature of the message, if available.
+    :return: True if authentication is successful, False otherwise.
+    """
+    from dedi_gateway.kms import get_active_kms
+    from dedi_gateway.database import get_active_db
+
+    network_id = message.metadata.network_id
+    sender_id = message.metadata.node_id
+    db = get_active_db()
+    kms = get_active_kms()
+
+    # Check if the node is registered and enabled
+    network_nodes = await db.networks.get_nodes(network_id)
+    node = None
+    for n in network_nodes:
+        if n.node_id == sender_id:
+            node = n
+            break
+
+    if not node:
+        raise NodeNotFoundException(
+            f'Node with ID {sender_id} not found in network {network_id}.'
+        )
+    if not node.approved:
+        raise NodeNotApprovedException(
+            f'Node with ID {sender_id} is not approved in network {network_id}.'
+        )
+
+    # Verify the signature of the message
+    signature_valid = await kms.verify_signature(
+        payload=json.dumps(message.to_dict()),
+        public_pem=node.public_key,
+        signature=signature,
+    )
+    if not signature_valid:
+        raise NetworkMessageSignatureException(
+            f'Signature verification failed for message from node '
+            f'{sender_id} in network {network_id}.'
+        )
 
 
 class NetworkDriver:
@@ -96,11 +147,13 @@ class NetworkDriver:
     async def raw_get(self,
                       url: str,
                       params: dict = None,
+                      headers: dict = None,
                       ) -> dict:
         """
         A raw method to perform a GET request.
         :param url: The URL to request
         :param params: Optional parameters to include in the request
+        :param headers: Optional headers to include in the request
         :return: JSON response from the server
         """
         try:
@@ -108,6 +161,7 @@ class NetworkDriver:
             response = await self._client.get(
                 url=url,
                 params=params,
+                headers=headers,
             )
 
             try:
@@ -130,11 +184,13 @@ class NetworkDriver:
     async def raw_post(self,
                        url: str,
                        payload: dict = None,
+                       headers: dict = None,
                        ):
         """
         A raw method to perform a POST request.
         :param url: The URL to request
         :param payload: The payload to send in the request
+        :param headers: Optional headers to include in the request
         :return: JSON response from the server
         """
         try:
@@ -142,6 +198,7 @@ class NetworkDriver:
             response = await self._client.post(
                 url=url,
                 json=payload,
+                headers=headers,
             )
 
             try:
@@ -165,6 +222,7 @@ class NetworkDriver:
                          url: str,
                          params: dict = None,
                          payload: dict = None,
+                         headers: dict = None,
                          ) -> AsyncGenerator[str, None]:
         """
         A raw method to stream SSE-style events as an async generator.
@@ -172,11 +230,18 @@ class NetworkDriver:
         :param url: The URL to stream from
         :param params: Optional parameters to include in the request
         :param payload: Optional JSON payload to send in the request
+        :param headers: Optional headers to include in the request
         :yield: String content of each 'data:' event
         """
         try:
             LOGGER.info('Performing stream request to %s', url)
-            async with self._client.stream('POST', url, params=params, json=payload) as response:
+            async with self._client.stream(
+                'POST',
+                url,
+                params=params,
+                json=payload,
+                headers=headers,
+            ) as response:
                 try:
                     response.raise_for_status()
                 except httpx.HTTPStatusError as e:
@@ -213,15 +278,29 @@ class NetworkInterface:
     async def _websocket_handler(self,
                                  node_id: str,
                                  url: str,
+                                 connection_message: AuthConnect,
                                  ):
         """
         Handler for establishing and maintaining a WebSocket connection.
+        :param node_id: The ID of the node to connect to
         :param url: The URL to connect to for WebSocket communication
+        :param connection_message: The message to send upon connection
         """
         from . import process_network_message
 
         broker = get_active_broker()
+        kms = get_active_kms()
         async with websockets.connect(url) as websocket:
+            connection_signature = await kms.sign_payload(
+                payload=json.dumps(connection_message.to_dict()),
+                network_id=connection_message.metadata.network_id
+            )
+
+            await websocket.send(json.dumps({
+                'message': connection_message.to_dict(),
+                'signature': connection_signature,
+            }))
+
             async def send_loop():
                 while True:
                     message = await broker.get_message(node_id)
@@ -246,6 +325,16 @@ class NetworkInterface:
                         await websocket.send(json.dumps({'pong': True}))
                         continue
 
+                    message_data = data['message']
+                    signature = data['signature']
+
+                    if not await authenticate_network_message(
+                            message=message_data,
+                            signature=signature,
+                    ):
+                        await websocket.send(json.dumps({'error': 'Authentication failed'}))
+                        continue
+
                     await process_network_message(data)
 
             await asyncio.gather(
@@ -267,6 +356,15 @@ class NetworkInterface:
         from . import process_network_message
 
         LOGGER.info('Establishing connection to node %s', node.node_id)
+        db = get_active_db()
+        network = await db.networks.get(network_id)
+
+        auth_connect_message = AuthConnect(
+            metadata=MessageMetadata(
+                network_id=network_id,
+                node_id=network.instance_id
+            )
+        )
 
         if await self.check_node_connectivity(
             node.url,
@@ -301,6 +399,7 @@ class NetworkInterface:
                     await self._websocket_handler(
                         node_id=node.node_id,
                         url=ws_url,
+                        connection_message=auth_connect_message,
                     )
                 except Exception as e:
                     LOGGER.error(
@@ -332,6 +431,13 @@ class NetworkInterface:
                     try:
                         async for event in self._session.raw_stream(
                             url=f'{node.url.rstrip("/")}/service/events',
+                            payload=auth_connect_message.to_dict(),
+                            headers={
+                                'Message-Signature': await get_active_kms().sign_payload(
+                                    payload=json.dumps(auth_connect_message.to_dict()),
+                                    network_id=network_id,
+                                )
+                            }
                         ):
                             LOGGER.info(
                                 'Received event from node %s',

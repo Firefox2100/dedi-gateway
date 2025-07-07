@@ -1,5 +1,6 @@
+import json
 from functools import wraps
-from quart import jsonify
+from quart import jsonify, websocket, has_websocket_context
 from werkzeug.exceptions import HTTPException
 
 from dedi_gateway.etc.consts import LOGGER
@@ -12,29 +13,46 @@ def exception_handler(f):
         try:
             return await f(*args, **kwargs)
         except DediGatewayException as e:
-            response = jsonify({'error': e.message})
-            response.status_code = e.status_code
-
-            if e.status_code == 401:
-                # Add WWW-Authenticate header
-                response.headers['WWW-Authenticate'] = 'Signature realm="dedi-link"'
+            message = {'error': e.message}
+            status_code = e.status_code
 
             LOGGER.exception('Dedi Gateway Exception: %s', e.message)
 
-            return response
-        except HTTPException as e:
-            response = jsonify({'error': e.description})
-            response.status_code = e.code
+            if has_websocket_context():
+                await websocket.send(json.dumps(message))
+                await websocket.close(code=4000 + status_code)
+                return
+            else:
+                response = jsonify(message)
+                response.status_code = status_code
+                if status_code == 401:
+                    response.headers['WWW-Authenticate'] = 'Signature realm="dedi-link"'
+                return response
 
+        except HTTPException as e:
+            message = {'error': e.description}
             LOGGER.exception('HTTP Exception: %s', e.description)
 
-            return response
-        except Exception as e:
-            response = jsonify({'error': str(e)})
-            response.status_code = 500
+            if has_websocket_context():
+                await websocket.send(json.dumps(message))
+                await websocket.close(code=4000 + e.code)
+                return
 
+            response = jsonify(message)
+            response.status_code = e.code
+            return response
+
+        except Exception as e:
+            message = {'error': str(e)}
             LOGGER.exception('Internal Server Error')
 
+            if has_websocket_context():
+                await websocket.send(json.dumps(message))
+                await websocket.close(code=4500)
+                return
+
+            response = jsonify(message)
+            response.status_code = 500
             return response
 
     return wrapper

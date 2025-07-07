@@ -10,8 +10,11 @@ from dedi_gateway.etc.utils import exception_handler
 from dedi_gateway.cache import get_active_broker, get_active_cache
 from dedi_gateway.database import get_active_db
 from dedi_gateway.kms import get_active_kms
-from dedi_gateway.model.network_message import AuthRequest, AuthInvite, AuthRequestResponse
-from dedi_gateway.model.network_interface import AuthInterface, process_network_message
+from dedi_gateway.model.node import Node
+from dedi_gateway.model.network_message import AuthRequest, AuthInvite, AuthRequestResponse, \
+    AuthConnect, NetworkMessage
+from dedi_gateway.model.network_interface import AuthInterface, process_network_message, \
+    authenticate_network_message
 
 
 service_blueprint = Blueprint("service", __name__)
@@ -104,9 +107,12 @@ async def submit_request():
     :return:
     """
     data = await request.get_json()
+    signature = request.headers.get('Message-Signature')
 
     if not data:
         abort(400, 'No data provided in request.')
+    if not signature:
+        abort(400, 'No signature provided in request headers.')
 
     cache = get_active_cache()
     challenge_nonce = data['challenge']['nonce']
@@ -126,10 +132,18 @@ async def submit_request():
 
     message_type = MessageType(data['messageType'])
     db = get_active_db()
+    kms = get_active_kms()
 
     if message_type == MessageType.AUTH_REQUEST:
         # Request to join a network
         auth_request = AuthRequest.from_dict(data)
+        if not await kms.verify_signature(
+            payload=json.dumps(auth_request.to_dict()),
+            public_pem=auth_request.node.public_key,
+            signature=signature,
+        ):
+            abort(403, 'Invalid signature for auth request.')
+
         await db.messages.save_received_request(
             request=auth_request,
         )
@@ -148,6 +162,13 @@ async def submit_request():
     elif message_type == MessageType.AUTH_INVITE:
         # Invite to join a network
         auth_invite = AuthInvite.from_dict(data)
+        if not await kms.verify_signature(
+            payload=json.dumps(auth_invite.to_dict()),
+            public_pem=auth_invite.node.public_key,
+            signature=signature,
+        ):
+            abort(403, 'Invalid signature for auth invite.')
+
         await db.messages.save_received_request(
             request=auth_invite,
         )
@@ -179,7 +200,7 @@ async def submit_request():
     }
 
 
-@service_blueprint.route('/requests/<request_id>', methods=['GET'])
+@service_blueprint.route('/requests/<request_id>', methods=['POST'])
 @exception_handler
 async def get_request_status(request_id):
     """
@@ -190,7 +211,86 @@ async def get_request_status(request_id):
     :param request_id: The ID of the request to check.
     :return:
     """
+    data = await request.get_json()
+    message_id = data.get('messageId')
+    challenge_nonce = data.get('challenge')
+    signature = request.headers.get('Message-Signature')
 
+    if not message_id or not challenge_nonce:
+        abort(400, 'Missing messageId or challenge in request data.')
+    if not signature:
+        abort(403, 'No signature provided in request headers.')
+
+    db = get_active_db()
+    kms = get_active_kms()
+    request_payload = await db.messages.get_received_request(request_id)
+
+    if not request_payload:
+        abort(404, 'Request not found.')
+
+    request_type = MessageType(request_payload['request']['messageType'])
+    request_status = AuthMessageStatus(request_payload['status'])
+    if request_type not in (MessageType.AUTH_REQUEST, MessageType.AUTH_INVITE):
+        abort(400, 'Invalid request type specified.')
+
+    if request_type == MessageType.AUTH_REQUEST:
+        request_obj = AuthRequest.from_dict(request_payload['request'])
+
+        if not await kms.verify_signature(
+            payload=json.dumps(request_obj.to_dict()),
+            public_pem=request_obj.node.public_key,
+            signature=signature,
+        ):
+            abort(403, 'Invalid signature for auth request.')
+
+        if request_status == AuthMessageStatus.PENDING:
+            return {'status': AuthMessageStatus.PENDING.value}
+        if request_status == AuthMessageStatus.REJECTED:
+            return {'status': AuthMessageStatus.REJECTED.value}
+        if request_status == AuthMessageStatus.ACCEPTED:
+            # Request accepted, return the auth request response as well
+            network = await db.networks.get(request_obj.metadata.network_id)
+            auth_response = AuthRequestResponse(
+                metadata=request_obj.metadata,
+                approved=True,
+                node=Node(
+                    node_id=network.instance_id,
+                    node_name=SERVICE_CONFIG.service_name,
+                    url=SERVICE_CONFIG.access_url,
+                    description=SERVICE_CONFIG.service_description,
+                    public_key=await kms.get_network_node_public_key(
+                        network_id=request_obj.metadata.network_id,
+                    ),
+                ),
+                network=network,
+                justification='Request accepted, response generated automatically upon polling.',
+                management_key={
+                    'publicKey': await kms.get_network_management_public_key(
+                        network_id=request_obj.metadata.network_id,
+                    )
+                }
+            )
+
+            return {
+                'status': AuthMessageStatus.ACCEPTED.value,
+                'response': auth_response.to_dict(),
+            }
+    elif request_type == MessageType.AUTH_INVITE:
+        invite_obj = AuthInvite.from_dict(request_payload['request'])
+
+        if not await kms.verify_signature(
+            payload=json.dumps(invite_obj.to_dict()),
+            public_pem=invite_obj.node.public_key,
+            signature=signature,
+        ):
+            abort(403, 'Invalid signature for auth invite.')
+
+        if request_status == AuthMessageStatus.PENDING:
+            return {'status': AuthMessageStatus.PENDING.value}
+        if request_status == AuthMessageStatus.REJECTED:
+            return {'status': AuthMessageStatus.REJECTED.value}
+
+        # TODO: Handle invite acceptance and return appropriate response
 
 
 @service_blueprint.route('/responses', methods=['POST'])
@@ -275,10 +375,18 @@ async def service_websocket():
     broker = get_active_broker()
 
     try:
-        bootstrap_string = await websocket.receive()
-        bootstrap_message = json.loads(bootstrap_string)
+        auth_connect_string = await websocket.receive()
+        auth_connect_data = json.loads(auth_connect_string)
+        auth_connect_message = AuthConnect.from_dict(auth_connect_data['message'])
 
-        node_id = bootstrap_message.get('nodeId')
+        if not await authenticate_network_message(
+            message=auth_connect_message,
+            signature=auth_connect_data['signature'],
+        ):
+            await websocket.send(json.dumps({
+                'error': 'Authentication failed for WebSocket connection.'
+            }))
+            abort(403, 'Authentication failed for WebSocket connection.')
     except json.decoder.JSONDecodeError:
         await websocket.send(json.dumps({
             'error': 'Invalid JSON format in bootstrap message.'
@@ -288,17 +396,23 @@ async def service_websocket():
     pong_event = asyncio.Event()
     pong_event.set()
 
-    LOGGER.info('Received WebSocket connection from node %s', node_id)
+    LOGGER.info(
+        'Received WebSocket connection from node %s',
+        auth_connect_message.metadata.node_id
+    )
 
     async def send_loop():
         while True:
             try:
-                message = await broker.get_message(node_id)
+                message = await broker.get_message(auth_connect_message.metadata.node_id)
 
                 if not message:
                     # Ping the client and wait for pong
                     pong_event.clear()
-                    LOGGER.debug('Pinging client for node %s', node_id)
+                    LOGGER.debug(
+                        'Pinging client for node %s',
+                        auth_connect_message.metadata.node_id
+                    )
                     await websocket.send(json.dumps({'ping': True}))
 
                     try:
@@ -311,14 +425,17 @@ async def service_websocket():
                     LOGGER.info(
                         'Sending message %s to node %s',
                         message['metadata']['messageId'],
-                        node_id
+                        auth_connect_message.metadata.node_id
                     )
                     LOGGER.debug('Message content: %s', message)
                     await websocket.send(json.dumps(message))
 
                 await asyncio.sleep(0.1)
             except asyncio.CancelledError:
-                LOGGER.info('Send loop cancelled for node %s', node_id)
+                LOGGER.info(
+                    'Send loop cancelled for node %s',
+                    auth_connect_message.metadata.node_id
+                )
                 raise
             except Exception:
                 abort(500, 'An error occurred while processing the message.')
@@ -329,7 +446,10 @@ async def service_websocket():
                 client_message = await websocket.receive()
                 try:
                     data = json.loads(client_message)
-                    LOGGER.info('Received message from node %s', node_id)
+                    LOGGER.info(
+                        'Received message from node %s',
+                        auth_connect_message.metadata.node_id
+                    )
                     LOGGER.debug('Message content: %s', data)
                 except json.JSONDecodeError:
                     await websocket.send(json.dumps({'error': 'Invalid JSON format'}))
@@ -337,18 +457,37 @@ async def service_websocket():
 
                 if data.get('pong'):
                     pong_event.set()
-                    LOGGER.debug('Received pong from node %s', node_id)
+                    LOGGER.debug(
+                        'Received pong from node %s',
+                        auth_connect_message.metadata.node_id
+                    )
+                    continue
+
+                message_data = data['message']
+                signature = data['signature']
+
+                if not await authenticate_network_message(
+                    message=message_data,
+                    signature=signature,
+                ):
+                    await websocket.send(json.dumps({'error': 'Authentication failed'}))
                     continue
 
                 await process_network_message(data)
             except asyncio.CancelledError:
-                LOGGER.info('Receive loop cancelled for node %s', node_id)
+                LOGGER.info(
+                    'Receive loop cancelled for node %s',
+                    auth_connect_message.metadata.node_id
+                )
                 raise
             except Exception as e:
                 await websocket.send(
                     json.dumps({'error': f'Unhandled error receiving message: {str(e)}'})
                 )
-                LOGGER.exception('Unhandled error receiving message from node %s', node_id)
+                LOGGER.exception(
+                    'Unhandled error receiving message from node %s',
+                    auth_connect_message.metadata.node_id
+                )
 
     send_task = asyncio.create_task(send_loop())
     receive_task = asyncio.create_task(receive_loop())
@@ -362,6 +501,42 @@ async def service_websocket():
         raise
 
 
+@service_blueprint.route('/message', methods=['POST'])
+@exception_handler
+async def handle_message():
+    """
+    Handle incoming messages from other nodes.
+
+    This is used together with the SSE endpoint, where a client subscribes
+    to this node to receive real-time updates, while using this endpoint to
+    submit messages to the node.
+    :return:
+    """
+    data = await request.get_json()
+    signature = request.headers.get('Message-Signature')
+
+    if not data:
+        abort(400, 'No data provided in request.')
+    if not signature:
+        abort(400, 'No signature provided in request headers.')
+
+    network_message = NetworkMessage.factory(data)
+    if not await authenticate_network_message(
+        message=network_message,
+        signature=signature,
+    ):
+        abort(403, 'Authentication failed for incoming message.')
+
+    LOGGER.info(
+        'Received message %s from node %s',
+        network_message.metadata.message_id,
+        network_message.metadata.node_id
+    )
+    LOGGER.debug('Message content: %s', network_message.to_dict())
+
+    await process_network_message(data)
+
+
 @service_blueprint.route('/event', methods=['POST'])
 @exception_handler
 async def handle_sse():
@@ -372,38 +547,57 @@ async def handle_sse():
     :return:
     """
     data = await request.get_json()
-
     if not data:
         abort(400, 'No data provided in request.')
 
-    node_id = data['nodeId']
+    auth_connect_message = AuthConnect.from_dict(data)
+    signature = request.headers.get('Message-Signature')
 
-    LOGGER.info('Received SSE connection from node %s', node_id)
+    if not await authenticate_network_message(
+        message=auth_connect_message,
+        signature=signature,
+    ):
+        abort(403, 'Authentication failed for SSE connection.')
+
+    LOGGER.info(
+        'Received SSE connection from node %s',
+        auth_connect_message.metadata.node_id
+    )
 
     async def event_stream():
         broker = get_active_broker()
         try:
             while True:
-                message = await broker.get_message(node_id)
+                message = await broker.get_message(auth_connect_message.metadata.node_id)
 
                 if message:
                     LOGGER.info(
                         'Sending message %s to node %s via SSE',
                         message['metadata']['messageId'],
-                        node_id
+                        auth_connect_message.metadata.node_id
                     )
                     yield f"data: {json.dumps(message)}\n\n"
                 else:
                     # Ping the client and wait for pong
-                    LOGGER.debug('Pinging client for node %s via SSE', node_id)
+                    LOGGER.debug(
+                        'Pinging client for node %s via SSE',
+                        auth_connect_message.metadata.node_id
+                    )
                     yield "event: ping\ndata: {}\n\n"
 
                 await asyncio.sleep(0.1)
         except asyncio.CancelledError:
-            LOGGER.info('Event stream cancelled for node %s', node_id)
+            LOGGER.info(
+                'Event stream cancelled for node %s',
+                auth_connect_message.metadata.node_id
+            )
             raise
         except Exception as e:
-            LOGGER.exception('Unhandled error in event stream for node %s: %s', node_id, str(e))
+            LOGGER.exception(
+                'Unhandled error in event stream for node %s: %s',
+                auth_connect_message.metadata.node_id,
+                str(e)
+            )
             yield f"data: {{'error': '{str(e)}'}}\n\n"
 
     return Response(event_stream(), content_type='text/event-stream')

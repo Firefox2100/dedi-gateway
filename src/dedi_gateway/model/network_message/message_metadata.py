@@ -1,3 +1,7 @@
+import time
+from uuid import uuid4
+
+
 class MessageMetadata:
     """
     Metadata for a message in the Decentralised Discovery Link network.
@@ -5,8 +9,8 @@ class MessageMetadata:
     def __init__(self,
                  network_id: str,
                  node_id: str,
-                 message_id: str,
-                 timestamp: float,
+                 message_id: str = None,
+                 timestamp: float = None,
                  ):
         """
         Metadata for a message in the Decentralised Discovery Link network.
@@ -17,8 +21,8 @@ class MessageMetadata:
         """
         self.network_id = network_id
         self.node_id = node_id
-        self.message_id = message_id
-        self.timestamp = timestamp
+        self.message_id = message_id or str(uuid4())
+        self.timestamp = timestamp or time.time()
 
     def to_dict(self):
         """
@@ -44,4 +48,17 @@ class MessageMetadata:
             node_id=payload['nodeId'],
             message_id=payload['messageId'],
             timestamp=payload['timestamp'],
+        )
+
+    @classmethod
+    def from_metadata(cls, metadata: 'MessageMetadata'):
+        """
+        Create a MessageMetadata instance from another MessageMetadata instance.
+        :param metadata: An instance of MessageMetadata
+        :return: A new instance of MessageMetadata
+        """
+        return cls(
+            network_id=metadata.network_id,
+            node_id=metadata.node_id,
+            message_id=metadata.message_id,
         )

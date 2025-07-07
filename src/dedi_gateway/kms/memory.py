@@ -1,3 +1,8 @@
+import base64
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+
 from dedi_gateway.etc.errors import KmsKeyManagementException
 from .kms import Kms
 
@@ -144,3 +149,30 @@ class MemoryKms(Kms):
             )
 
         return private_key
+
+    async def sign_payload(self,
+                           payload: str,
+                           network_id: str,
+                           ) -> str:
+        network_node_key = self._network_node_keys.get(network_id)
+        if not network_node_key:
+            raise KmsKeyManagementException(
+                f'Network node key for {network_id} not found in memory KMS.'
+            )
+
+        private_pem = network_node_key['privateKey']
+        private_key = serialization.load_pem_private_key(
+            private_pem.encode(),
+            password=None,
+        )
+
+        signature = private_key.sign(
+            payload.encode(),
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH,
+            ),
+            hashes.SHA256()
+        )
+
+        return base64.b64encode(signature).decode()

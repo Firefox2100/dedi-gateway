@@ -90,6 +90,28 @@ class NetworkNotFoundException(DediGatewayException):
         super().__init__(message, status_code)
 
 
+class NodeNotFoundException(DediGatewayException):
+    """
+    Exception raised when a node is not found.
+    """
+    def __init__(self,
+                 message: str = 'Node not found.',
+                 status_code: int = 404,
+                 ):
+        super().__init__(message, status_code)
+
+
+class NodeNotApprovedException(DediGatewayException):
+    """
+    Exception raised when a node is not approved to join a network.
+    """
+    def __init__(self,
+                 message: str = 'Node not approved to communicate with this service.',
+                 status_code: int = 403,
+                 ):
+        super().__init__(message, status_code)
+
+
 class NetworkMessageNotFoundException(DediGatewayException):
     """
     Exception raised when a network message is not found.
@@ -97,5 +119,16 @@ class NetworkMessageNotFoundException(DediGatewayException):
     def __init__(self,
                  message: str = 'Network message not found.',
                  status_code: int = 404,
+                 ):
+        super().__init__(message, status_code)
+
+
+class NetworkMessageSignatureException(DediGatewayException):
+    """
+    Exception raised when a network message signature is invalid.
+    """
+    def __init__(self,
+                 message: str = 'Network message signature is invalid.',
+                 status_code: int = 400,
                  ):
         super().__init__(message, status_code)

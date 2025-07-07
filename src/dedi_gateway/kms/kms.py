@@ -1,5 +1,7 @@
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+import base64
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG
 from dedi_gateway.etc.errors import ConfigurationParsingException
@@ -115,6 +117,48 @@ class Kms:
         :return: The network management's private key in PEM format.
         """
         raise NotImplementedError
+
+    async def sign_payload(self,
+                           payload: str,
+                           network_id: str,
+                           ) -> str:
+        """
+        Sign a payload with the network node key.
+        :param payload: The payload to sign as a string.
+        :param network_id: The network ID to use for signing.
+        :return: The signature of the payload.
+        """
+        raise NotImplementedError
+
+    async def verify_signature(self,
+                               payload: str,
+                               public_pem: str,
+                               signature: str,
+                               ) -> bool:
+        """
+        Verify a signature against a payload using the network node public key.
+        :param payload: The payload to verify as a string.
+        :param public_pem: The public key to use for verification in PEM format.
+        :param signature: The signature to verify.
+        :return: True if the signature is valid, False otherwise.
+        """
+        public_key = serialization.load_pem_public_key(
+            public_pem.encode(),
+        )
+
+        try:
+            public_key.verify(
+                base64.b64decode(signature),
+                payload.encode(),
+                padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA256()),
+                    salt_length=padding.PSS.MAX_LENGTH,
+                ),
+                hashes.SHA256(),
+            )
+            return True
+        except InvalidSignature:
+            return False
 
 
 _active_kms: Kms | None = None

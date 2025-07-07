@@ -1,3 +1,4 @@
+import base64
 import hvac
 from hvac.exceptions import InvalidRequest, InvalidPath
 
@@ -201,7 +202,7 @@ class HcvKms(Kms):
                                                 previous_version=False,
                                                 ) -> str:
         secret_data = await self._read_kv_secret(
-            path=f'network/{network_id}',
+            path=f'{SERVICE_CONFIG.vault_kv_path}/network/{network_id}',
             previous_version=previous_version,
         )
         return secret_data['publicKey']
@@ -210,7 +211,7 @@ class HcvKms(Kms):
                                                  network_id: str,
                                                  ):
         secret_data = await self._read_kv_secret(
-            path=f'network/{network_id}',
+            path=f'{SERVICE_CONFIG.vault_kv_path}/network/{network_id}',
         )
 
         private_key = secret_data.get('privateKey')
@@ -220,3 +221,31 @@ class HcvKms(Kms):
                 f'Private key for network {network_id} not found in HashiCorp Vault.',
                 status_code=404,
             )
+
+    async def sign_payload(self,
+                           payload: str,
+                           network_id: str,
+                           ) -> str:
+        try:
+            response = self.client.secrets.transit.sign_data(
+                name=f'network-{network_id}',
+                hash_input=base64.b64encode(payload.encode()).decode(),
+                hash_algorithm='sha2-256',
+                signature_algorithm='pss',
+                salt_length='auto',
+                mount_point=SERVICE_CONFIG.vault_transit_engine,
+            )
+
+            signature = response['data']['signature']
+            signature = signature.split(':')[-1]
+
+            return signature
+        except InvalidPath as e:
+            raise KmsKeyManagementException(
+                f'Network key {network_id} not found in HashiCorp Vault.',
+                status_code=404,
+            ) from e
+        except InvalidRequest as e:
+            raise KmsKeyManagementException(
+                f'Error signing payload for network {network_id} in HashiCorp Vault.',
+            ) from e

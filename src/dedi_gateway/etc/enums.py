@@ -35,3 +35,4 @@ class MessageType(Enum):
     AUTH_INVITE = 'authInvite'
     AUTH_REQUEST_RESPONSE = 'authRequestResponse'
     AUTH_INVITE_RESPONSE = 'authInviteResponse'
+    AUTH_CONNECT = 'authConnect'
