@@ -11,7 +11,7 @@ import websockets
 from dedi_gateway.etc.consts import LOGGER
 from dedi_gateway.etc.enums import ConnectivityType, TransportType
 from dedi_gateway.etc.errors import NetworkRequestFailedException, NodeNotFoundException, \
-    NodeNotApprovedException, NetworkMessageSignatureException
+    NodeNotApprovedException
 from dedi_gateway.cache import get_active_broker, get_active_cache
 from dedi_gateway.database import get_active_db
 from dedi_gateway.kms import get_active_kms
@@ -319,6 +319,8 @@ class NetworkInterface:
                 'signature': connection_signature,
             }))
 
+            LOGGER.info('WebSocket connection established with node %s', node_id)
+
             async def send_loop():
                 while True:
                     message = await broker.get_message(node_id)
@@ -474,6 +476,9 @@ class NetworkInterface:
                             e,
                         )
 
+            await cache.delete_route(
+                node_id=node.node_id,
+            )
             raise NetworkRequestFailedException(
                 message=f'Failed to establish connection to node {node.node_id} '
                         f'after multiple attempts.',

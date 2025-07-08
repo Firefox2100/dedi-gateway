@@ -5,13 +5,14 @@ from copy import deepcopy
 from quart import Blueprint, Response, request, websocket, abort
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG, LOGGER
-from dedi_gateway.etc.enums import MessageType, AuthMessageStatus
+from dedi_gateway.etc.enums import MessageType, AuthMessageStatus, ConnectivityType, TransportType
 from dedi_gateway.etc.powlib import validate
 from dedi_gateway.etc.utils import exception_handler
 from dedi_gateway.cache import get_active_broker, get_active_cache
 from dedi_gateway.database import get_active_db
 from dedi_gateway.kms import get_active_kms
 from dedi_gateway.model.node import Node
+from dedi_gateway.model.route import Route
 from dedi_gateway.model.network_message import AuthRequest, AuthInvite, AuthRequestResponse, \
     AuthConnect, NetworkMessage
 from dedi_gateway.model.network_interface import AuthInterface, process_network_message, \
@@ -378,6 +379,7 @@ async def service_websocket():
     Accepts functional messages from other servers.
     """
     broker = get_active_broker()
+    cache = get_active_cache()
 
     try:
         auth_connect_string = await websocket.receive()
@@ -404,6 +406,14 @@ async def service_websocket():
     LOGGER.info(
         'Received WebSocket connection from node %s',
         auth_connect_message.metadata.node_id
+    )
+    await cache.save_route(
+        route=Route(
+            network_id=auth_connect_message.metadata.network_id,
+            node_id=auth_connect_message.metadata.node_id,
+            connectivity_type=ConnectivityType.DIRECT,
+            transport_type=TransportType.WEBSOCKET,
+        )
     )
 
     async def send_loop():
@@ -504,6 +514,14 @@ async def service_websocket():
         receive_task.cancel()
         await websocket.close(1000)
         raise
+    finally:
+        LOGGER.info(
+            'WebSocket connection closed for node %s',
+            auth_connect_message.metadata.node_id
+        )
+        await cache.delete_route(
+            node_id=auth_connect_message.metadata.node_id,
+        )
 
 
 @service_blueprint.route('/message', methods=['POST'])
@@ -568,6 +586,15 @@ async def handle_sse():
         'Received SSE connection from node %s',
         auth_connect_message.metadata.node_id
     )
+    cache = get_active_cache()
+    await cache.save_route(
+        route=Route(
+            network_id=auth_connect_message.metadata.network_id,
+            node_id=auth_connect_message.metadata.node_id,
+            connectivity_type=ConnectivityType.DIRECT,
+            transport_type=TransportType.SSE,
+        )
+    )
 
     async def event_stream():
         broker = get_active_broker()
@@ -604,5 +631,13 @@ async def handle_sse():
                 str(e)
             )
             yield f"data: {{'error': '{str(e)}'}}\n\n"
+        finally:
+            LOGGER.info(
+                'Node %s disconnected from SSE event stream',
+                auth_connect_message.metadata.node_id
+            )
+            await cache.delete_route(
+                node_id=auth_connect_message.metadata.node_id,
+            )
 
     return Response(event_stream(), content_type='text/event-stream')

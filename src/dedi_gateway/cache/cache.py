@@ -48,6 +48,15 @@ class Cache:
         """
         raise NotImplementedError
 
+    async def delete_route(self,
+                           node_id: str,
+                           ) -> bool:
+        """
+        Delete a route from the cache by node ID.
+        :param node_id: The ID of the node for which to delete the route
+        """
+        raise NotImplementedError
+
 
 _active_cache: Cache | None = None
 

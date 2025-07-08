@@ -65,3 +65,10 @@ class RedisCache(Cache):
             return Route.from_dict(json.loads(route_data))
 
         return None
+
+    async def delete_route(self,
+                           node_id: str,
+                           ) -> bool:
+        result = await self.db.delete(f'route:{node_id}')
+
+        return result > 0
