@@ -55,16 +55,11 @@ async def authenticate_network_message(message: NetworkMessage,
         )
 
     # Verify the signature of the message
-    signature_valid = await kms.verify_signature(
+    return await kms.verify_signature(
         payload=json.dumps(message.to_dict()),
         public_pem=node.public_key,
         signature=signature,
     )
-    if not signature_valid:
-        raise NetworkMessageSignatureException(
-            f'Signature verification failed for message from node '
-            f'{sender_id} in network {network_id}.'
-        )
 
 
 class NetworkDriver:
@@ -262,6 +257,29 @@ class NetworkDriver:
                 message=f'Error performing stream request to {url}',
             ) from e
 
+    async def post_message(self,
+                           network_message: NetworkMessage,
+                           url: str,
+                           ):
+        """
+        Post a network message to a given URL.
+        :param network_message: The network message to post
+        :param url: The URL to post the message to
+        :return: The response from the server
+        """
+        kms = get_active_kms()
+
+        return await self.raw_post(
+            url=url,
+            payload=network_message.to_dict(),
+            headers={
+                'Message-Signature': await kms.sign_payload(
+                    payload=json.dumps(network_message.to_dict()),
+                    network_id=network_message.metadata.network_id,
+                )
+            }
+        )
+
 
 class NetworkInterface:
     """
@@ -394,7 +412,7 @@ class NetworkInterface:
                     outbound=True,
                 )
             )
-            while last_failure is None or time.time() - last_failure < 60:
+            while last_failure is None or time.time() - last_failure > 60:
                 try:
                     await self._websocket_handler(
                         node_id=node.node_id,
@@ -427,10 +445,10 @@ class NetworkInterface:
                         outbound=True,
                     )
                 )
-                while last_failure is None or time.time() - last_failure < 60:
+                while last_failure is None or time.time() - last_failure > 60:
                     try:
                         async for event in self._session.raw_stream(
-                            url=f'{node.url.rstrip("/")}/service/events',
+                            url=f'{node.url.rstrip("/")}/service/event',
                             payload=auth_connect_message.to_dict(),
                             headers={
                                 'Message-Signature': await get_active_kms().sign_payload(

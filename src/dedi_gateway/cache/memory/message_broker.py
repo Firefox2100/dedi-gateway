@@ -53,7 +53,7 @@ class MemoryMessageBroker(MessageBroker):
     """
     _db = {}
 
-    async def get_message(self, node_id: str) -> dict:
+    async def get_message(self, node_id: str) -> dict | None:
         queue: AsyncQueue | None = MemoryMessageBroker._db.get(node_id, None)
 
         counter = 0
@@ -67,9 +67,9 @@ class MemoryMessageBroker(MessageBroker):
             if queue is None:
                 queue = MemoryMessageBroker._db.get(node_id, None)
 
-        raise MessageBrokerTimeoutException(
-            f'Timed out waiting for message for node {node_id}.'
-        )
+            counter += 1
+
+        return None
 
     async def publish_message(self, node_id: str, message: dict):
         queue = MemoryMessageBroker._db.get(node_id, None)

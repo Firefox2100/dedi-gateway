@@ -42,9 +42,11 @@ class UserIdentity:
 class User(BaseModel):
     def __init__(self,
                  user_id: str,
+                 public_key: str,
                  identities: list[UserIdentity] = None,
                  ):
         self.user_id = user_id
+        self.public_key = public_key
         self.identities = identities or []
 
     def to_dict(self) -> dict[str, Any]:
@@ -55,6 +57,7 @@ class User(BaseModel):
         """
         return {
             'userId': self.user_id,
+            'publicKey': self.public_key,
             'identities': [identity.to_dict() for identity in self.identities]
         }
 
@@ -69,6 +72,7 @@ class User(BaseModel):
         identities = [UserIdentity.from_dict(identity) for identity in data.get('identities', [])]
         return cls(
             user_id=data['userId'],
+            public_key=data['publicKey'],
             identities=identities
         )
 

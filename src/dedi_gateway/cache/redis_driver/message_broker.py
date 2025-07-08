@@ -31,7 +31,7 @@ class RedisMessageBroker(MessageBroker):
         """
         cls._db = client
 
-    async def get_message(self, node_id: str) -> dict:
+    async def get_message(self, node_id: str) -> dict | None:
         channel_name = f'message:node:{node_id}'
 
         value = await self.db.blpop(
@@ -42,9 +42,7 @@ class RedisMessageBroker(MessageBroker):
         if value:
             return json.loads(value[1])
 
-        raise MessageBrokerTimeoutException(
-            f'Timed out waiting for message for node {node_id}.'
-        )
+        return None
 
     async def publish_message(self, node_id: str, message: dict):
         channel_name = f'message:node:{node_id}'

@@ -35,14 +35,35 @@ class Kms:
 
         return private_pem.decode(), public_pem.decode()
 
-    async def generate_user_key(self, user_id: str) -> str | None:
+    @staticmethod
+    async def verify_signature(payload: str,
+                               public_pem: str,
+                               signature: str,
+                               ) -> bool:
         """
-        Generate a user-specific key pair for encryption and signing.
-        :param user_id:
-        :return: The user public key. Private key is not exported if the KMS
-            implementation supports it.
+        Verify a signature against a payload using the network node public key.
+        :param payload: The payload to verify as a string.
+        :param public_pem: The public key to use for verification in PEM format.
+        :param signature: The signature to verify.
+        :return: True if the signature is valid, False otherwise.
         """
-        raise NotImplementedError
+        public_key = serialization.load_pem_public_key(
+            public_pem.encode(),
+        )
+
+        try:
+            public_key.verify(
+                base64.b64decode(signature),
+                payload.encode(),
+                padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA256()),
+                    salt_length=padding.PSS.MAX_LENGTH,
+                ),
+                hashes.SHA256(),
+            )
+            return True
+        except InvalidSignature:
+            return False
 
     async def generate_network_node_key(self, network_id: str) -> str:
         """
@@ -69,18 +90,6 @@ class Kms:
         :param public_key: The public key to store.
         :param network_id: The network ID to associate with the key.
         :param private_key: The private key to store, if applicable.
-        """
-        raise NotImplementedError
-
-    async def get_local_user_public_key(self,
-                                        user_id: str,
-                                        previous_version=False,
-                                        ) -> str:
-        """
-        Get the public key for a local user
-        :param user_id: The user ID to retrieve the public key for.
-        :param previous_version: If True, retrieves the previous version of the key.
-        :return: The user's public key in PEM format.
         """
         raise NotImplementedError
 
@@ -130,36 +139,6 @@ class Kms:
         """
         raise NotImplementedError
 
-    async def verify_signature(self,
-                               payload: str,
-                               public_pem: str,
-                               signature: str,
-                               ) -> bool:
-        """
-        Verify a signature against a payload using the network node public key.
-        :param payload: The payload to verify as a string.
-        :param public_pem: The public key to use for verification in PEM format.
-        :param signature: The signature to verify.
-        :return: True if the signature is valid, False otherwise.
-        """
-        public_key = serialization.load_pem_public_key(
-            public_pem.encode(),
-        )
-
-        try:
-            public_key.verify(
-                base64.b64decode(signature),
-                payload.encode(),
-                padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA256()),
-                    salt_length=padding.PSS.MAX_LENGTH,
-                ),
-                hashes.SHA256(),
-            )
-            return True
-        except InvalidSignature:
-            return False
-
 
 _active_kms: Kms | None = None
 
@@ -192,13 +171,13 @@ def get_active_kms() -> Kms | None:
         _active_kms = HcvKms()
 
         return _active_kms
-    elif SERVICE_CONFIG.kms_driver == 'memory':
+    if SERVICE_CONFIG.kms_driver == 'memory':
         from .memory import MemoryKms
 
         _active_kms = MemoryKms()
 
         return _active_kms
-    else:
-        raise ConfigurationParsingException(
-            f'Unsupported KMS driver: {SERVICE_CONFIG.kms_driver}'
-        )
+
+    raise ConfigurationParsingException(
+        f'Unsupported KMS driver: {SERVICE_CONFIG.kms_driver}'
+    )

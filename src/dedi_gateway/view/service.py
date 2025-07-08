@@ -1,6 +1,7 @@
 import json
 import asyncio
 import secrets
+from copy import deepcopy
 from quart import Blueprint, Response, request, websocket, abort
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG, LOGGER
@@ -334,11 +335,15 @@ async def submit_response():
             local_network.central_node = response_obj.network.central_node
             local_network.visible = response_obj.network.visible
             local_network.network_id = response_obj.network.network_id
+            new_node = deepcopy(response_obj.node)
+            new_node.data_index = {}
+            new_node.score = 0
+            new_node.approved = True
 
             await db.networks.save(local_network)
             await db.networks.add_node(
                 network_id=local_network.network_id,
-                node=response_obj.node,
+                node=new_node,
             )
 
             await kms.store_network_management_key(

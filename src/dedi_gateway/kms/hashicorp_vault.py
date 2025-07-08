@@ -109,24 +109,6 @@ class HcvKms(Kms):
                 status_code=404,
             ) from e
 
-    async def generate_user_key(self, user_id: str) -> str | None:
-        try:
-            self.client.secrets.transit.create_key(
-                name=f'user-{user_id}',
-                key_type='rsa-4096',
-                mount_point=SERVICE_CONFIG.vault_transit_engine,
-            )
-        except InvalidRequest:
-            return None
-
-        self.client.secrets.transit.update_key_configuration(
-            name=user_id,
-            deletion_allowed=True,
-            mount_point=SERVICE_CONFIG.vault_transit_engine,
-        )
-
-        return await self.get_local_user_public_key(user_id)
-
     async def generate_network_node_key(self, network_id: str) -> str:
         try:
             self.client.secrets.transit.create_key(
@@ -177,15 +159,6 @@ class HcvKms(Kms):
             path=f'{SERVICE_CONFIG.vault_kv_path}/network/{network_id}',
             secret=payload,
             mount_point=SERVICE_CONFIG.vault_kv_engine,
-        )
-
-    async def get_local_user_public_key(self,
-                                        user_id: str,
-                                        previous_version = False,
-                                        ) -> str:
-        return await self._read_transit_public_key(
-            key_name=f'user-{user_id}',
-            previous_version=previous_version,
         )
 
     async def get_network_node_public_key(self,

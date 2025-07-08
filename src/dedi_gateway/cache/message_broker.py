@@ -8,14 +8,13 @@ class MessageBroker:
     """
     DRIVER_TIMEOUT = 60
 
-    async def get_message(self, node_id: str) -> dict:
+    async def get_message(self, node_id: str) -> dict | None:
         """
         Retrieve a message for a specific node. Async blocking operation,
         so if no message is found, it will wait until a message is available or
         the operation times out.
         :param node_id: The node ID to retrieve the message for.
         :return: A dictionary containing the message data.
-        :raises MessageBrokerTimeoutException: If the operation times out.
         """
         raise NotImplementedError
 

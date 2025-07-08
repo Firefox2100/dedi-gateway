@@ -1,4 +1,5 @@
 import time
+import json
 import asyncio
 from copy import deepcopy
 from uuid import uuid4
@@ -99,9 +100,9 @@ class AuthInterface(NetworkInterface):
             challenge_solution=challenge_solution,
             justification=justification or 'No justification provided',
         )
-        join_response = await self._session.raw_post(
+        join_response = await self._session.post_message(
             url=f'{target_url}/service/requests',
-            payload=join_request.to_dict(),
+            network_message=join_request,
         )
 
         # Store the request in the database
@@ -163,9 +164,9 @@ class AuthInterface(NetworkInterface):
             challenge_solution=challenge_solution,
             justification=justification or 'No justification provided',
         )
-        join_response = await self._session.raw_post(
+        join_response = await self._session.post_message(
             url=f'{target_url}/service/requests',
-            payload=join_invite.to_dict(),
+            network_message=join_invite,
         )
 
         # Store the request in the database
@@ -249,9 +250,9 @@ class AuthInterface(NetworkInterface):
 
         # Try sending the response to the requester
         try:
-            await self._session.raw_post(
+            await self._session.post_message(
                 url=f'{request.node.url}/service/responses',
-                payload=auth_response.to_dict(),
+                network_message=auth_response,
             )
 
             await asyncio.sleep(1)

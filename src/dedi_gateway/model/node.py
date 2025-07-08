@@ -88,7 +88,7 @@ class Node(BaseModel):
             approved=payload.get('approved', False),
         )
 
-    def to_dict(self, key=False) -> dict:
+    def to_dict(self) -> dict:
         """
         Serialise the Node object to a dictionary.
         :param key: Whether to include the public key in the payload
@@ -103,7 +103,7 @@ class Node(BaseModel):
             'approved': self.approved,
         }
 
-        if self.public_key is not None and key:
+        if self.public_key:
             payload['publicKey'] = self.public_key
         if self.data_index:
             payload['dataIndex'] = self.data_index
