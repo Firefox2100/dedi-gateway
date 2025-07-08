@@ -13,7 +13,10 @@ on:
 
 jobs:
   analysis:
+    name: SonarQube Analysis
     runs-on: ubuntu-latest
+    env:
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
 
     steps:
     - name: Checkout repository
@@ -26,11 +29,21 @@ jobs:
       with:
         python-version: "3.11"
 
-    - name: Install dependencies and compile C extensions
+    - name: Install Build Wrapper
+      uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v5
+
+    - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install .[test,hypercorn,mongodb,redis,hvac]
-        ./scripts/build-dependency.sh
+
+    - name: Run Build Wrapper
+      run: |
+        build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} \
+          gcc -shared -fPIC \
+          -o ./src/dedi_gateway/data/bin/libpow.so \
+          ./src/dedi_gateway/etc/powlib/pow_solver.c \
+          -lcrypto
 
     - name: Run tests with coverage
       continue-on-error: true
@@ -62,6 +75,7 @@ jobs:
       with:
         args: >
           -Dsonar.projectVersion=${{ env.VERSION }}
+          -Dsonar.cfamily.build-wrapper-output=${{ env.BUILD_WRAPPER_OUT_DIR }}
 
     - name: Publish test results
       uses: mikepenz/action-junit-report@v5
