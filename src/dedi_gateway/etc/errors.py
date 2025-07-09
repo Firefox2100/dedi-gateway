@@ -1,3 +1,8 @@
+"""
+Exception definitions for dedi-gateway package
+"""
+
+
 class DediGatewayException(Exception):
     """
     Base class for all exceptions raised by the service.
@@ -140,6 +145,28 @@ class NetworkMessageSignatureException(DediGatewayException):
     """
     def __init__(self,
                  message: str = 'Network message signature is invalid.',
+                 status_code: int = 400,
+                 ):
+        super().__init__(message, status_code)
+
+
+class MessageConfigurationNotFoundException(DediGatewayException):
+    """
+    Exception raised when a message configuration is not found.
+    """
+    def __init__(self,
+                 message: str = 'Message configuration not found.',
+                 status_code: int = 404,
+                 ):
+        super().__init__(message, status_code)
+
+
+class MessageConfigurationParsingException(DediGatewayException):
+    """
+    Exception raised when there is an error parsing a message configuration.
+    """
+    def __init__(self,
+                 message: str = 'Error parsing message configuration.',
                  status_code: int = 400,
                  ):
         super().__init__(message, status_code)

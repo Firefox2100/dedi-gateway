@@ -1,3 +1,10 @@
+"""
+HashiCorp Vault Key Management Service (KMS) implementation.
+
+This file contains implementation of the Kms interface, with the
+HashiCorp Vault as the backend.
+"""
+
 import base64
 import hvac
 from hvac.exceptions import InvalidRequest, InvalidPath
@@ -110,6 +117,10 @@ class HcvKms(Kms):
             ) from e
 
     async def generate_network_node_key(self, network_id: str) -> str:
+        """
+        Generate a network-specific key pair for signing network messages.
+        :return: The generated network public key. Private key is not exported.
+        """
         try:
             self.client.secrets.transit.create_key(
                 name=f'network-{network_id}',
@@ -128,9 +139,13 @@ class HcvKms(Kms):
             mount_point=SERVICE_CONFIG.vault_transit_engine,
         )
 
-        return await self.get_local_user_public_key(network_id)
+        return await self.get_network_node_public_key(network_id)
 
     async def generate_network_management_key(self, network_id: str) -> tuple[str, str]:
+        """
+        Generate a network management key pair for managing network operations.
+        :return: The generated network management private and public key pair.
+        """
         private_key, public_key = self._generate_rsa_key_pair()
 
         self.client.secrets.kv.v2.create_or_update_secret(
@@ -149,6 +164,12 @@ class HcvKms(Kms):
                                            network_id: str,
                                            private_key: str | None = None,
                                            ):
+        """
+        Store the network management key pair in the KMS.
+        :param public_key: The public key to store.
+        :param network_id: The network ID to associate with the key.
+        :param private_key: The private key to store, if applicable.
+        """
         payload = {
             'publicKey': public_key,
         }

@@ -1,0 +1,34 @@
+{
+  "basePackage": "org.cafevariome",
+  "name": "Cafe Variome messages",
+  "description": "This package contains the message definitions for the Cafe Variome, a healthcare data discovery platform.",
+  "version": "1.0.0",
+  "author": "Brookes Lab",
+  "license": "https://raw.githubusercontent.com/CafeVariomeUoL/CafeVariomeV3/refs/heads/main/LICENSE",
+  "messages": [
+    {
+      "id": "record.query",
+      "name": "Record level query",
+      "async": false,
+      "response": "record.response"
+    },
+    {
+      "id": "record.response",
+      "name": "Record level response",
+      "async": false,
+      "response": null
+    },
+    {
+      "id": "metadata.query",
+      "name": "Metadata level query",
+      "async": false,
+      "response": "metadata.response"
+    },
+    {
+      "id": "metadata.response",
+      "name": "Metadata level response",
+      "async": false,
+      "response": null
+    }
+  ]
+}

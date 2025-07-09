@@ -31,8 +31,8 @@ class MessageType(Enum):
     """
     Types of messages passed in the network protocol
     """
-    AUTH_REQUEST = 'authRequest'
-    AUTH_INVITE = 'authInvite'
-    AUTH_REQUEST_RESPONSE = 'authRequestResponse'
-    AUTH_INVITE_RESPONSE = 'authInviteResponse'
-    AUTH_CONNECT = 'authConnect'
+    AUTH_REQUEST = 'uk.co.firefox2100.ddg.auth.request'
+    AUTH_INVITE = 'uk.co.firefox2100.ddg.auth.invite'
+    AUTH_REQUEST_RESPONSE = 'uk.co.firefox2100.ddg.auth.request.response'
+    AUTH_INVITE_RESPONSE = 'uk.co.firefox2100.ddg.auth.invite.response'
+    AUTH_CONNECT = 'uk.co.firefox2100.ddg.auth.connect'

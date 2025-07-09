@@ -1,3 +1,11 @@
+"""
+Key Management Service interface definition
+
+This service uses a KMS to store asynchronous keys and sensitive
+data for secure signing and other operations. A new class may implement
+this interface, and map itself to one of the driver options
+"""
+
 import base64
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization, hashes
