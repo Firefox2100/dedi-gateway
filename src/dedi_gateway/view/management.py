@@ -85,6 +85,28 @@ async def join_network():
     return {'message': 'Join request sent successfully'}, 202
 
 
+@management_blueprint.route('/networks/invite', methods=['POST'])
+@exception_handler
+async def invite_to_network():
+    """
+    Invite a node to join a network.
+    :return:
+    """
+    data = await request.get_json()
+
+    if not data:
+        return {'error': 'No data provided'}, 400
+
+    auth_interface = AuthInterface()
+    await auth_interface.send_join_invite(
+        target_url=data['targetUrl'],
+        network_id=data['networkId'],
+        justification=data.get('justification', None)
+    )
+
+    return {'message': 'Network invitation sent successfully'}, 202
+
+
 @management_blueprint.route('/networks/<network_id>', methods=['GET'])
 @exception_handler
 async def get_network(network_id):

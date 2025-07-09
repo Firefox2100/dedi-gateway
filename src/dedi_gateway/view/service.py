@@ -14,7 +14,7 @@ from dedi_gateway.kms import get_active_kms
 from dedi_gateway.model.node import Node
 from dedi_gateway.model.route import Route
 from dedi_gateway.model.network_message import AuthRequest, AuthInvite, AuthRequestResponse, \
-    AuthConnect, NetworkMessage
+    AuthInviteResponse, AuthConnect, NetworkMessage, MessageMetadata
 from dedi_gateway.model.network_interface import AuthInterface, process_network_message, \
     authenticate_network_message
 
@@ -253,7 +253,11 @@ async def get_request_status(request_id):
             # Request accepted, return the auth request response as well
             network = await db.networks.get(request_obj.metadata.network_id)
             auth_response = AuthRequestResponse(
-                metadata=request_obj.metadata,
+                metadata=MessageMetadata(
+                    message_id=request_obj.metadata.message_id,
+                    network_id=request_obj.metadata.network_id,
+                    node_id=network.instance_id,
+                ),
                 approved=True,
                 node=Node(
                     node_id=network.instance_id,
@@ -291,8 +295,31 @@ async def get_request_status(request_id):
             return {'status': AuthMessageStatus.PENDING.value}
         if request_status == AuthMessageStatus.REJECTED:
             return {'status': AuthMessageStatus.REJECTED.value}
+        if request_status == AuthMessageStatus.ACCEPTED:
+            network = await db.networks.get(invite_obj.metadata.network_id)
+            auth_response = AuthInviteResponse(
+                metadata=MessageMetadata(
+                    message_id=invite_obj.metadata.message_id,
+                    network_id=invite_obj.metadata.network_id,
+                    node_id=network.instance_id,
+                ),
+                approved=True,
+                node=Node(
+                    node_id=network.instance_id,
+                    node_name=SERVICE_CONFIG.service_name,
+                    url=SERVICE_CONFIG.access_url,
+                    description=SERVICE_CONFIG.service_description,
+                    public_key=await kms.get_network_node_public_key(
+                        network_id=invite_obj.metadata.network_id,
+                    ),
+                ),
+                justification='Invitation accepted, response generated automatically upon polling.',
+            )
 
-        # TODO: Handle invite acceptance and return appropriate response
+            return {
+                'status': AuthMessageStatus.ACCEPTED.value,
+                'response': auth_response.to_dict(),
+            }
 
 
 @service_blueprint.route('/responses', methods=['POST'])
@@ -361,8 +388,26 @@ async def submit_response():
         )
     elif sent_request_type == MessageType.AUTH_INVITE and \
             response_type == MessageType.AUTH_INVITE_RESPONSE:
-        # TODO: Implement invite response handling
-        pass
+        request_obj = AuthInvite.from_dict(sent_request['request'])
+        response_obj = AuthInviteResponse.from_dict(data)
+        local_network = await db.networks.get(request_obj.metadata.network_id)
+
+        if response_obj.approved:
+            new_node = deepcopy(response_obj.node)
+            new_node.data_index = {}
+            new_node.score = 0
+            new_node.approved = True
+
+            await db.networks.add_node(
+                network_id=local_network.network_id,
+                node=new_node,
+            )
+
+        await db.messages.update_request_status(
+            request_id=request_id,
+            status=AuthMessageStatus.ACCEPTED \
+                if response_obj.approved else AuthMessageStatus.REJECTED,
+        )
     else:
         abort(400, 'Invalid message type specified for response.')
 

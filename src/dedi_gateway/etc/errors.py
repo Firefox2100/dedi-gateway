@@ -112,6 +112,17 @@ class NodeNotApprovedException(DediGatewayException):
         super().__init__(message, status_code)
 
 
+class NodeNotConnectedException(DediGatewayException):
+    """
+    Exception raised when a node is not connected to the network.
+    """
+    def __init__(self,
+                 message: str = 'Node is not connected to the network.',
+                 status_code: int = 503,
+                 ):
+        super().__init__(message, status_code)
+
+
 class NetworkMessageNotFoundException(DediGatewayException):
     """
     Exception raised when a network message is not found.

@@ -1,5 +1,3 @@
-import time
-import json
 import asyncio
 from copy import deepcopy
 from uuid import uuid4
@@ -10,7 +8,8 @@ from dedi_gateway.etc.errors import JoiningNetworkException, InvitingNodeExcepti
 from dedi_gateway.etc.powlib import solve
 from dedi_gateway.kms import get_active_kms
 from dedi_gateway.database import get_active_db
-from ..network_message import MessageMetadata, AuthRequest, AuthInvite, AuthRequestResponse
+from ..network_message import MessageMetadata, AuthRequest, AuthInvite, AuthRequestResponse, \
+    AuthInviteResponse
 from ..network import Network
 from ..node import Node
 from .network_interface import NetworkInterface
@@ -86,8 +85,6 @@ class AuthInterface(NetworkInterface):
             metadata=MessageMetadata(
                 network_id=network_id,
                 node_id=network.instance_id,
-                message_id=str(uuid4()),
-                timestamp=time.time(),
             ),
             node=Node(
                 node_id=network.instance_id,
@@ -149,8 +146,6 @@ class AuthInterface(NetworkInterface):
             metadata=MessageMetadata(
                 network_id=network.network_id,
                 node_id=network.instance_id,
-                message_id=str(uuid4()),
-                timestamp=time.time(),
             ),
             node=Node(
                 node_id=network.instance_id,
@@ -162,8 +157,19 @@ class AuthInterface(NetworkInterface):
             network=network,
             challenge_nonce=challenge['nonce'],
             challenge_solution=challenge_solution,
+            management_key={
+                'publicKey': await kms.get_network_management_public_key(
+                    network_id=network.network_id,
+                )
+            },
             justification=justification or 'No justification provided',
         )
+        if network.central_node is None:
+            # Decentralised network, the management key can be shared
+            join_invite.management_key['privateKey'] = \
+                await kms.get_network_management_private_key(
+                    network_id=network.network_id,
+                )
         join_response = await self._session.post_message(
             url=f'{target_url}/service/requests',
             network_message=join_invite,
@@ -200,7 +206,6 @@ class AuthInterface(NetworkInterface):
             message_id=request.metadata.message_id,
             network_id=request.metadata.network_id,
             node_id=network.instance_id,
-            timestamp=time.time(),
         )
 
         if approve:
@@ -269,7 +274,6 @@ class AuthInterface(NetworkInterface):
                 request.node.url,
                 str(e),
             )
-            pass
 
     async def process_join_invite(self,
                                   invite: AuthInvite,
@@ -283,3 +287,78 @@ class AuthInterface(NetworkInterface):
         :param justification: The justification for the decision
         :return:
         """
+        db = get_active_db()
+        kms = get_active_kms()
+        await db.messages.update_request_status(
+            request_id=invite.metadata.message_id,
+            status=AuthMessageStatus.ACCEPTED if approve else AuthMessageStatus.REJECTED,
+        )
+
+        network = deepcopy(invite.network)
+        network.node_ids = []
+        metadata = MessageMetadata(
+            message_id=invite.metadata.message_id,
+            network_id=invite.metadata.network_id,
+            node_id=network.instance_id,
+        )
+
+        if approve:
+            await db.networks.save(network)
+            await kms.store_network_management_key(
+                network_id=network.network_id,
+                public_key=invite.management_key['publicKey'],
+                private_key=invite.management_key.get('privateKey', None),
+            )
+            await kms.generate_network_node_key(network.network_id)
+
+            auth_response = AuthInviteResponse(
+                metadata=metadata,
+                approved=True,
+                node=Node(
+                    node_id=network.instance_id,
+                    node_name=SERVICE_CONFIG.service_name,
+                    url=SERVICE_CONFIG.access_url,
+                    description=SERVICE_CONFIG.service_description,
+                    public_key=await kms.get_network_node_public_key(
+                        network_id=invite.metadata.network_id,
+                    ),
+                ),
+                justification=justification or 'No justification provided',
+            )
+
+            new_node = deepcopy(invite.node)
+            new_node.approved = True
+            new_node.data_index = {}
+
+            await db.networks.add_node(
+                network_id=invite.metadata.network_id,
+                node=new_node,
+            )
+        else:
+            auth_response = AuthInviteResponse(
+                metadata=metadata,
+                approved=False,
+                justification=justification or 'No justification provided',
+            )
+
+        # Try sending the response to the inviter
+        try:
+            await self._session.post_message(
+                url=f'{invite.node.url}/service/responses',
+                network_message=auth_response,
+            )
+
+            await asyncio.sleep(1)
+
+            if approve:
+                await self.establish_connection(
+                    network_id=invite.metadata.network_id,
+                    node=invite.node,
+                )
+        except NetworkRequestFailedException as e:
+            # Sending failed, wait for the requester to poll for the response
+            LOGGER.info(
+                'Failed to send join request response to %s: %s',
+                invite.node.url,
+                str(e),
+            )

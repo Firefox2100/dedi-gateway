@@ -18,6 +18,7 @@ class AuthInvite(NetworkMessage):
                  network: Network,
                  challenge_nonce: str,
                  challenge_solution: int,
+                 management_key: dict,
                  justification: str = '',
                  ):
         """
@@ -27,6 +28,9 @@ class AuthInvite(NetworkMessage):
         :param network: The network to which the node is being invited
         :param challenge_nonce: The nonce for the security challenge
         :param challenge_solution: The security challenge solution
+        :param management_key: The management key for the network. If the network is
+            decentralised, this will be both the public and private keys; otherwise it will
+            just be the public key.
         :param justification: The reason for the request
         """
         super().__init__(
@@ -36,6 +40,7 @@ class AuthInvite(NetworkMessage):
         self.network = network
         self.challenge_nonce = challenge_nonce
         self.challenge_solution = challenge_solution
+        self.management_key = management_key or {}
         self.justification = justification
 
     def to_dict(self) -> dict:
@@ -51,6 +56,7 @@ class AuthInvite(NetworkMessage):
                 'nonce': self.challenge_nonce,
                 'solution': self.challenge_solution,
             },
+            'managementKey': self.management_key,
             'justification': self.justification,
         })
         return payload
@@ -72,5 +78,6 @@ class AuthInvite(NetworkMessage):
             network=network,
             challenge_nonce=payload['challenge']['nonce'],
             challenge_solution=payload['challenge']['solution'],
+            management_key=payload.get('managementKey', {}),
             justification=payload.get('justification', ''),
         )

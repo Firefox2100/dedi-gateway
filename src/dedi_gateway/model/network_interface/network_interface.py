@@ -11,7 +11,7 @@ import websockets
 from dedi_gateway.etc.consts import LOGGER
 from dedi_gateway.etc.enums import ConnectivityType, TransportType
 from dedi_gateway.etc.errors import NetworkRequestFailedException, NodeNotFoundException, \
-    NodeNotApprovedException
+    NodeNotApprovedException, NodeNotConnectedException
 from dedi_gateway.cache import get_active_broker, get_active_cache
 from dedi_gateway.database import get_active_db
 from dedi_gateway.kms import get_active_kms
@@ -521,3 +521,50 @@ class NetworkInterface:
                 node=node,
             )
         )
+
+    async def send_message(self,
+                           message: NetworkMessage,
+                           node: Node,
+                           ) -> None:
+        """
+        Send a message to a node in the network.
+        :param message: The message to send
+        :param node: The node to which the message should be sent
+        """
+        cache = get_active_cache()
+        broker = get_active_broker()
+
+        # Check if the node is connected
+        route = await cache.get_route(node.node_id)
+
+        if not route:
+            raise NodeNotConnectedException(
+                f'No route found for node {node.node_id}. Node is likely down or not reachable.'
+            )
+
+        if route.connectivity_type == ConnectivityType.DIRECT:
+            # Direct connection, send the message over the connection
+            if route.transport_type == TransportType.WEBSOCKET:
+                # WebSocket works both ways, so send the message through broker
+                await broker.publish_message(
+                    node_id=node.node_id,
+                    message=message.to_dict(),
+                )
+            elif route.transport_type == TransportType.SSE:
+                # If the SSE is inbound connection, send through broker
+                if not route.outbound:
+                    await broker.publish_message(
+                        node_id=node.node_id,
+                        message=message.to_dict(),
+                    )
+                else:
+                    # Send the message to the node directly
+                    await self._session.post_message(
+                        network_message=message,
+                        url=f'{node.url.rstrip("/")}/service/message',
+                    )
+        elif route.connectivity_type == ConnectivityType.PROXY:
+            # TODO: Implement proxy connection logic
+            raise NotImplementedError(
+                'Proxy connection logic is not implemented yet.'
+            )
