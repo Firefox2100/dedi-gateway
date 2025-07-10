@@ -1,12 +1,16 @@
-from quart import Blueprint, request
+from quart import Blueprint, request, abort
 
+from dedi_gateway.etc.consts import LOGGER
+from dedi_gateway.etc.errors import MessageBrokerTimeoutException
 from dedi_gateway.etc.enums import AuthMessageStatus, MessageType
 from dedi_gateway.etc.utils import exception_handler
+from dedi_gateway.cache import get_active_broker
 from dedi_gateway.kms import get_active_kms
 from dedi_gateway.database import get_active_db
-from dedi_gateway.model import Network
-from dedi_gateway.model.network_message import AuthRequest, AuthInvite
-from dedi_gateway.model.network_interface import AuthInterface
+from dedi_gateway.model.network import Network
+from dedi_gateway.model.network_message import AuthRequest, AuthInvite, NetworkMessageRegistry, \
+    MessageMetadata, CustomMessage
+from dedi_gateway.model.network_interface import NetworkInterface, AuthInterface
 
 management_blueprint = Blueprint('management', __name__)
 
@@ -43,7 +47,7 @@ async def create_network():
     """
     data = await request.get_json()
     if not data:
-        return {'error': 'No data provided'}, 400
+        abort(400, 'No data provided')
 
     network = Network.from_dict(data)
 
@@ -73,7 +77,7 @@ async def join_network():
     data = await request.get_json()
 
     if not data:
-        return {'error': 'No data provided'}, 400
+        abort(400, 'No data provided')
 
     auth_interface = AuthInterface()
     await auth_interface.send_join_request(
@@ -134,13 +138,13 @@ async def update_network(network_id):
     """
     data = await request.get_json()
     if not data:
-        return {'error': 'No data provided'}, 400
+        abort(400, 'No data provided')
 
     db = get_active_db()
     network = await db.networks.get(network_id)
 
     if not network:
-        return {'error': 'Network not found'}, 404
+        abort(404, 'Network not found')
 
     for key, value in data.items():
         setattr(network, key, value)
@@ -197,7 +201,7 @@ async def respond_to_request(request_id):
     """
     data = await request.get_json()
     if not data:
-        return {'error': 'No data provided'}, 400
+        abort(400, 'No data provided')
 
     db = get_active_db()
     auth_request = await db.messages.get_received_request(request_id)
@@ -228,4 +232,71 @@ async def respond_to_request(request_id):
 
         return {'message': 'Invite processed successfully'}, 200
 
-    return {'error': 'Invalid request type'}, 400
+    abort(400, 'Invalid request type')
+
+
+@management_blueprint.route('/messages', methods=['POST'])
+@exception_handler
+async def send_message():
+    """
+    Send a message over the decentralised network.
+    :return:
+    """
+    data = await request.get_json()
+    if not data:
+        abort(400, 'No data provided')
+
+    message_payload = data['message']
+    broadcast = data.get('broadcast', False)
+    target_node = data.get('targetNode', None)
+
+    try:
+        message_type = MessageType(message_payload['messageType'])
+        abort(400, f'Internal message type {message_type} cannot be sent directly.')
+    except ValueError:
+        pass
+
+    message_registry = NetworkMessageRegistry()
+    broker = get_active_broker()
+    db = get_active_db()
+    network_interface = NetworkInterface()
+    message_config = message_registry.get_configuration(message_payload['messageType'])
+
+    if not message_config:
+        abort(400, f'Unknown message type {message_payload["messageType"]}.')
+
+    message = CustomMessage.from_dict(message_payload)
+    node = await db.nodes.get(target_node)
+
+    if not node.approved:
+        abort(403, f'Node {node.node_id} is not approved to communicate.')
+
+    if broadcast:
+        messages_sent = await network_interface.broadcast_message(
+            message=message,
+        )
+    elif target_node:
+        await network_interface.send_message(
+            message=message,
+            node=node,
+        )
+        messages_sent = 1
+    else:
+        abort(400, 'Either broadcast or targetNode must be specified.')
+
+    responses = []
+    try:
+        async for rsp in broker.response_generator(
+            message_id=message.metadata.message_id,
+            message_count=messages_sent,
+        ):
+            responses.append(rsp)
+    except MessageBrokerTimeoutException:
+        LOGGER.warning(
+            'Message %s received less responses than expected before timeout'
+        )
+
+    return {
+        'deliveredCount': messages_sent,
+        'responses': responses,
+    }

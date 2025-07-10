@@ -21,6 +21,7 @@ classifiers = [
 ]
 license = {file = "LICENSE"}
 dependencies = [
+    "apscheduler~=3.11.0",
     "cryptography~=45.0.4",
     "httpx~=0.28.1",
     "networkx~=3.5",

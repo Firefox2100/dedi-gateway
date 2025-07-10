@@ -76,7 +76,7 @@ jobs:
       with:
         args: >
           -Dsonar.projectVersion=${{ env.VERSION }}
-          -Dsonar.cfamily.build-wrapper-output=${{ env.BUILD_WRAPPER_OUT_DIR }}
+          -Dsonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
 
     - name: Publish test results
       uses: mikepenz/action-junit-report@v5

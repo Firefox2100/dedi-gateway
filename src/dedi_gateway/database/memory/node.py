@@ -31,6 +31,17 @@ class MemoryNodeRepository(NodeRepository):
 
         return nodes
 
+    async def filter(self,
+                     *,
+                     approved: bool | None = None,
+                     ) -> list[Node]:
+        nodes = list(self.db.values())
+
+        if approved is not None:
+            nodes = [n for n in nodes if n['approved'] == approved]
+
+        return [Node.from_dict(n) for n in nodes]
+
     async def save(self, node: Node) -> None:
         if self.db.get(node.node_id):
             raise ValueError(f'Node with ID {node.node_id} already exists.')

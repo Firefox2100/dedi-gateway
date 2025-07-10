@@ -1,3 +1,5 @@
+from typing import AsyncGenerator
+
 from dedi_gateway.etc.consts import SERVICE_CONFIG
 from dedi_gateway.etc.errors import ConfigurationParsingException
 
@@ -23,6 +25,27 @@ class MessageBroker:
         Publish a message to a specific node.
         :param node_id: The node ID to publish the message to.
         :param message: The message data to publish, as a dictionary.
+        """
+        raise NotImplementedError
+
+    async def add_to_response(self,
+                              message: dict,
+                              ):
+        """
+        Add a response message to the broker.
+        :param message: The response message to add, as a dictionary.
+        """
+        raise NotImplementedError
+
+    def response_generator(self,
+                                 message_id: str,
+                                 message_count: int = 1,
+                                 ) -> AsyncGenerator[dict, None]:
+        """
+        Asynchronous generator to yield responses for a specific message ID.
+        :param message_id: The ID of the message to retrieve responses for.
+        :param message_count: The number of expected responses.
+        :return: An asynchronous generator yielding response messages.
         """
         raise NotImplementedError
 

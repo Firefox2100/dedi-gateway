@@ -10,25 +10,29 @@
       "id": "record.query",
       "name": "Record level query",
       "async": false,
-      "response": "record.response"
+      "response": "record.response",
+      "precedence": null
     },
     {
       "id": "record.response",
       "name": "Record level response",
       "async": false,
-      "response": null
+      "response": null,
+      "precedence": "record.query"
     },
     {
       "id": "metadata.query",
       "name": "Metadata level query",
       "async": false,
-      "response": "metadata.response"
+      "response": "metadata.response",
+      "precedence": null
     },
     {
       "id": "metadata.response",
       "name": "Metadata level response",
       "async": false,
-      "response": null
+      "response": null,
+      "precedence": "metadata.query"
     }
   ]
 }

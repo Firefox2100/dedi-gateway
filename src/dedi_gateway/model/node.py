@@ -57,7 +57,6 @@ class Node(BaseModel):
             self.url == other.url,
             self.public_key == other.public_key,
             self.description == other.description,
-            self.approved == other.approved,
         ])
 
     def __hash__(self) -> int:
@@ -67,7 +66,6 @@ class Node(BaseModel):
             self.url,
             self.public_key,
             self.description,
-            self.approved,
         ))
 
     @classmethod
@@ -143,6 +141,17 @@ class NodeRepository:
         Retrieve multiple nodes by their IDs.
         :param node_ids: The list of node IDs to retrieve.
         :return: A list of Node objects.
+        """
+        raise NotImplementedError
+
+    async def filter(self,
+                     *,
+                     approved: bool | None = None,
+                     ) -> list[Node]:
+        """
+        Filter nodes based on approval status.
+        :param approved: Whether the node is approved for message exchange.
+        :return: A list of Node objects that match the filter criteria.
         """
         raise NotImplementedError
 

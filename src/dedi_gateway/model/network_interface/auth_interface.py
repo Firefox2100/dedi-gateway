@@ -296,6 +296,7 @@ class AuthInterface(NetworkInterface):
 
         network = deepcopy(invite.network)
         network.node_ids = []
+        network.instance_id = str(uuid4())
         metadata = MessageMetadata(
             message_id=invite.metadata.message_id,
             network_id=invite.metadata.network_id,

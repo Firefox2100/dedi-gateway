@@ -345,17 +345,17 @@ class NetworkInterface:
                         await websocket.send(json.dumps({'pong': True}))
                         continue
 
-                    message_data = data['message']
+                    message = NetworkMessage.factory(data['message'])
                     signature = data['signature']
 
                     if not await authenticate_network_message(
-                            message=message_data,
-                            signature=signature,
+                        message=message,
+                        signature=signature,
                     ):
                         await websocket.send(json.dumps({'error': 'Authentication failed'}))
                         continue
 
-                    await process_network_message(data)
+                    await process_network_message(message)
 
             await asyncio.gather(
                 send_loop(),
@@ -422,7 +422,7 @@ class NetworkInterface:
                         connection_message=auth_connect_message,
                     )
                 except Exception as e:
-                    LOGGER.error(
+                    LOGGER.exception(
                         'WebSocket connection to node %s failed: %s',
                         node.node_id,
                         e,
@@ -464,10 +464,23 @@ class NetworkInterface:
                                 node.node_id,
                             )
                             LOGGER.debug('Event content: %s', event)
+                            event_data = json.loads(event)
+                            if 'ping' in event_data:
+                                continue
+                            message = NetworkMessage.factory(event_data['message'])
+                            signature = event_data.get('signature')
 
-                            await process_network_message(
-                                json.loads(event),
-                            )
+                            if not await authenticate_network_message(
+                                message=message,
+                                signature=signature,
+                            ):
+                                LOGGER.error(
+                                    'Authentication failed for message from node %s',
+                                    node.node_id,
+                                )
+                                continue
+
+                            await process_network_message(message)
                     except Exception as e:
                         last_failure = time.time()
                         LOGGER.error(
@@ -515,6 +528,14 @@ class NetworkInterface:
         :param node: The node to connect to
         :return: None
         """
+        cache = get_active_cache()
+        if await cache.get_route(node.node_id):
+            LOGGER.info(
+                'Connection to node %s already established, skipping.',
+                node.node_id,
+            )
+            return
+
         asyncio.create_task(
             self._establish_connection(
                 network_id=network_id,
@@ -548,14 +569,26 @@ class NetworkInterface:
                 # WebSocket works both ways, so send the message through broker
                 await broker.publish_message(
                     node_id=node.node_id,
-                    message=message.to_dict(),
+                    message={
+                        'message': message.to_dict(),
+                        'signature': await get_active_kms().sign_payload(
+                            payload=json.dumps(message.to_dict()),
+                            network_id=message.metadata.network_id,
+                        ),
+                    },
                 )
             elif route.transport_type == TransportType.SSE:
                 # If the SSE is inbound connection, send through broker
                 if not route.outbound:
                     await broker.publish_message(
                         node_id=node.node_id,
-                        message=message.to_dict(),
+                        message={
+                            'message': message.to_dict(),
+                            'signature': await get_active_kms().sign_payload(
+                                payload=json.dumps(message.to_dict()),
+                                network_id=message.metadata.network_id,
+                            ),
+                        },
                     )
                 else:
                     # Send the message to the node directly
@@ -568,3 +601,70 @@ class NetworkInterface:
             raise NotImplementedError(
                 'Proxy connection logic is not implemented yet.'
             )
+
+    async def broadcast_message(self,
+                                message: NetworkMessage,
+                                ) -> int:
+        """
+        Broadcast a message to all nodes in the network.
+        :param message: The message to broadcast
+        :return: The number of messages sent successfully
+        """
+        db = get_active_db()
+        nodes = await db.networks.get_nodes(message.metadata.network_id)
+
+        sent_messages = 0
+        for node in nodes:
+            if node.approved:
+                try:
+                    await self.send_message(
+                        message=message,
+                        node=node,
+                    )
+                    sent_messages += 1
+                except NodeNotConnectedException as e:
+                    LOGGER.error(
+                        'Failed to send message to node %s: %s',
+                        node.node_id,
+                        e,
+                    )
+                except NetworkRequestFailedException as e:
+                    LOGGER.error(
+                        'Network request failed for node %s: %s',
+                        node.node_id,
+                        e,
+                    )
+
+        return sent_messages
+
+async def establish_all_connections():
+    """
+    Try to establish connections to all nodes known to this service.
+    """
+    db = get_active_db()
+    cache = get_active_cache()
+    network_interface = NetworkInterface()
+
+    networks = await db.networks.filter()
+    for network in networks:
+        nodes = await db.networks.get_nodes(network.network_id)
+        for node in nodes:
+            if not node.approved:
+                continue
+
+            route = await cache.get_route(node.node_id)
+            if route:
+                continue
+
+            # Establish connection to the node
+            try:
+                await network_interface.establish_connection(
+                    network_id=network.network_id,
+                    node=node,
+                )
+            except (NodeNotConnectedException, NetworkRequestFailedException) as e:
+                LOGGER.error(
+                    'Failed to establish connection to node %s: %s',
+                    node.node_id,
+                    e,
+                )

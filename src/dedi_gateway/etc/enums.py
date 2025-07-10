@@ -1,6 +1,9 @@
 from enum import Enum
 
 
+BASE_PACKAGE = 'uk.co.firefox2100.ddg'
+
+
 class ConnectivityType(Enum):
     """
     Connectivity types
@@ -27,12 +30,32 @@ class AuthMessageStatus(Enum):
     REJECTED = 'rejected'
 
 
+class AuthNotificationType(Enum):
+    """
+    Types of notifications related to authentication or authorisation
+    """
+    JOINING = 'joining'
+    LEAVING = 'leaving'
+
+
+class SyncRequestType(Enum):
+    """
+    What data is being requested from the sync target
+    """
+    INSTANCE = 'instance'
+    DATA_INDEX = 'dataIndex'
+
+
 class MessageType(Enum):
     """
     Types of messages passed in the network protocol
     """
-    AUTH_REQUEST = 'uk.co.firefox2100.ddg.auth.request'
-    AUTH_INVITE = 'uk.co.firefox2100.ddg.auth.invite'
-    AUTH_REQUEST_RESPONSE = 'uk.co.firefox2100.ddg.auth.request.response'
-    AUTH_INVITE_RESPONSE = 'uk.co.firefox2100.ddg.auth.invite.response'
-    AUTH_CONNECT = 'uk.co.firefox2100.ddg.auth.connect'
+    AUTH_REQUEST = BASE_PACKAGE + '.auth.request'
+    AUTH_INVITE = BASE_PACKAGE + '.auth.invite'
+    AUTH_REQUEST_RESPONSE = BASE_PACKAGE + '.auth.request.response'
+    AUTH_INVITE_RESPONSE = BASE_PACKAGE + '.auth.invite.response'
+    AUTH_CONNECT = BASE_PACKAGE + '.auth.connect'
+    AUTH_NOTIFICATION = BASE_PACKAGE + '.auth.notification'
+    SYNC_INDEX = BASE_PACKAGE + '.sync.index'
+    SYNC_NODES = BASE_PACKAGE + '.sync.nodes'
+    SYNC_REQUEST = BASE_PACKAGE + '.sync.request'

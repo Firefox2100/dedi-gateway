@@ -31,6 +31,22 @@ class MongoNodeRepository(NodeRepository):
 
         return nodes
 
+    async def filter(self,
+                     *,
+                     approved: bool | None = None,
+                     ) -> list[Node]:
+        query = {}
+        if approved is not None:
+            query['approved'] = approved
+
+        cursor = self.collection.find(query)
+        nodes = []
+
+        async for node in cursor:
+            nodes.append(Node.from_dict(node))
+
+        return nodes
+
     async def save(self, node: Node) -> None:
         await self.collection.update_one(
             {'nodeId': node.node_id},

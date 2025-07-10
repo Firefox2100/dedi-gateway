@@ -39,6 +39,22 @@ class Database:
         """
         raise NotImplementedError
 
+    async def save_data_index(self,
+                              data_index: dict,
+                              ):
+        """
+        Save the data index to the database.
+        :param data_index: The data index to save, as a dictionary.
+        """
+        raise NotImplementedError
+
+    async def get_data_index(self) -> dict:
+        """
+        Retrieve the data index from the database.
+        :return: The data index as a dictionary.
+        """
+        raise NotImplementedError
+
 
 _active_db: Database | None = None
 

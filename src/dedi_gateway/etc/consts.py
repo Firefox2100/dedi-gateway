@@ -1,13 +1,23 @@
 import logging
+from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+
+CONFIG_PATH = Path(__file__).resolve().parent.parent.parent.parent / 'conf'
+SCHEDULER = AsyncIOScheduler()
 
 
 class ServiceConfig(BaseSettings):
     """
     Configuration settings for the Decentralised Discovery Gateway service.
     """
-    model_config = SettingsConfigDict(env_prefix='DG_')
+    model_config = SettingsConfigDict(
+        env_prefix='DG_',
+        env_file=CONFIG_PATH / '.env',
+        env_file_encoding='utf-8',
+    )
 
     application_name: str = Field(
         'dedi-gateway',

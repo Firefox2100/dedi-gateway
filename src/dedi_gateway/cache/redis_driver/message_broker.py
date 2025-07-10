@@ -1,4 +1,5 @@
 import json
+from typing import AsyncGenerator
 import redis.asyncio as redis
 
 from dedi_gateway.etc.errors import MessageBrokerTimeoutException
@@ -52,3 +53,33 @@ class RedisMessageBroker(MessageBroker):
             channel_name,
             message_json,
         )
+
+    async def add_to_response(self,
+                              message: dict,
+                              ):
+        channel_name = f'message:response:{message["messageId"]}'
+        message_json = json.dumps(message)
+
+        await self.db.lpush(
+            channel_name,
+            message_json,
+        )
+
+    async def response_generator(self,
+                                 message_id: str,
+                                 message_count: int = 1,
+                                 ) -> AsyncGenerator[dict, None]:
+        channel_name = f'message:response:{message_id}'
+
+        for _ in range(message_count):
+            value = await self.db.blpop(
+                [channel_name],
+                timeout=self.DRIVER_TIMEOUT,
+            )
+
+            if not value:
+                raise MessageBrokerTimeoutException(
+                    f"Timeout while waiting for response for message ID: {message_id}"
+                )
+
+            yield json.loads(value[1])

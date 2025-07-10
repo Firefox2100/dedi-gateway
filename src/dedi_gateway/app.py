@@ -1,6 +1,9 @@
 import asyncio
 from quart import Quart
 
+from dedi_gateway.etc.consts import SCHEDULER
+from dedi_gateway.etc.utils import scheduler_add_initial_jobs
+from dedi_gateway.model.network_message.registry import NetworkMessageRegistry
 from dedi_gateway.view import management_blueprint, service_blueprint
 
 
@@ -15,6 +18,16 @@ def create_app() -> Quart:
     # Register blueprints
     app.register_blueprint(management_blueprint, url_prefix='/manage')
     app.register_blueprint(service_blueprint, url_prefix='/service')
+
+    NetworkMessageRegistry.load_packages()
+
+    @app.before_serving
+    async def startup():
+        scheduler_add_initial_jobs()
+        if not SCHEDULER.running:
+            SCHEDULER.start()
+        else:
+            SCHEDULER.resume()
 
     return app
 

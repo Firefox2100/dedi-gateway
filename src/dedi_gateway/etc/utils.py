@@ -3,7 +3,7 @@ from functools import wraps
 from quart import jsonify, websocket, has_websocket_context
 from werkzeug.exceptions import HTTPException
 
-from dedi_gateway.etc.consts import LOGGER
+from dedi_gateway.etc.consts import LOGGER, SCHEDULER
 from dedi_gateway.etc.errors import DediGatewayException
 
 
@@ -56,3 +56,10 @@ def exception_handler(f):
             return response
 
     return wrapper
+
+
+def scheduler_add_initial_jobs():
+    """
+    Add jobs that are tied to application cycle, and should be run regardless of
+    the operations handled.
+    """

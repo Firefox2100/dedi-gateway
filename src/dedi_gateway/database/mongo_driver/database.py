@@ -55,3 +55,26 @@ class MongoDatabase(Database):
         """
         cls._client = client
         cls._db_name = db_name
+
+    async def save_data_index(self,
+                              data_index: dict,
+                              ):
+        collection = self.db['data_index']
+
+        await collection.update_one(
+            {'_id': 'data_index'},
+            {'$set': data_index},
+            upsert=True
+        )
+
+    async def get_data_index(self) -> dict:
+        collection = self.db['data_index']
+        data_index = await collection.find_one({'_id': 'data_index'})
+
+        if data_index is None:
+            return {}
+
+        # Remove the '_id' field before returning
+        data_index = {k: v for k, v in data_index.items() if k != '_id'}
+
+        return data_index

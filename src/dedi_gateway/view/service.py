@@ -484,7 +484,7 @@ async def service_websocket():
                     await pong_event.wait()
                     LOGGER.info(
                         'Sending message %s to node %s',
-                        message['metadata']['messageId'],
+                        message['message']['metadata']['messageId'],
                         auth_connect_message.metadata.node_id
                     )
                     LOGGER.debug('Message content: %s', message)
@@ -523,17 +523,17 @@ async def service_websocket():
                     )
                     continue
 
-                message_data = data['message']
                 signature = data['signature']
+                message = NetworkMessage.factory(data['message'])
 
                 if not await authenticate_network_message(
-                    message=message_data,
+                    message=message,
                     signature=signature,
                 ):
                     await websocket.send(json.dumps({'error': 'Authentication failed'}))
                     continue
 
-                await process_network_message(data)
+                await process_network_message(message)
             except asyncio.CancelledError:
                 LOGGER.info(
                     'Receive loop cancelled for node %s',
