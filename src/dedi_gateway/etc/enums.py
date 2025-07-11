@@ -59,3 +59,6 @@ class MessageType(Enum):
     SYNC_INDEX = BASE_PACKAGE + '.sync.index'
     SYNC_NODES = BASE_PACKAGE + '.sync.nodes'
     SYNC_REQUEST = BASE_PACKAGE + '.sync.request'
+    ROUTE_REQUEST = BASE_PACKAGE + '.route.request'
+    ROUTE_RESPONSE = BASE_PACKAGE + '.route.response'
+    ROUTE_NOTIFICATION = BASE_PACKAGE + '.route.notification'

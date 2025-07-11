@@ -5,7 +5,6 @@ from dedi_gateway.etc.consts import SERVICE_CONFIG
 from dedi_gateway.database import get_active_db
 from dedi_gateway.cache import get_active_broker
 from dedi_gateway.kms import get_active_kms
-from ..network import Network
 from ..node import Node
 from ..network_message import NetworkMessage, MessageMetadata, SyncIndex, SyncNode, SyncRequest
 from .network_interface import NetworkInterface
