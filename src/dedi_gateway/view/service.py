@@ -6,7 +6,7 @@ from quart import Blueprint, Response, request, websocket, abort
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG, LOGGER
 from dedi_gateway.etc.enums import MessageType, AuthMessageStatus, ConnectivityType, TransportType
-from dedi_gateway.etc.powlib import validate
+from dedi_gateway.etc.powlib import PowDriver
 from dedi_gateway.etc.utils import exception_handler
 from dedi_gateway.cache import get_active_broker, get_active_cache
 from dedi_gateway.database import get_active_db
@@ -117,6 +117,7 @@ async def submit_request():
         abort(400, 'No signature provided in request headers.')
 
     cache = get_active_cache()
+    driver = PowDriver()
     challenge_nonce = data['challenge']['nonce']
     challenge_solution = data['challenge']['solution']
 
@@ -125,7 +126,7 @@ async def submit_request():
     if not challenge_difficulty:
         abort(403, 'Invalid challenge nonce.')
 
-    if not validate(
+    if not driver.validate(
         nonce=challenge_nonce,
         difficulty=challenge_difficulty,
         response=challenge_solution,

@@ -5,7 +5,7 @@ from uuid import uuid4
 from dedi_gateway.etc.consts import SERVICE_CONFIG, LOGGER
 from dedi_gateway.etc.errors import JoiningNetworkException, InvitingNodeException, \
     NetworkRequestFailedException
-from dedi_gateway.etc.powlib import solve
+from dedi_gateway.etc.powlib import PowDriver
 from dedi_gateway.kms import get_active_kms
 from dedi_gateway.database import get_active_db
 from ..network_message import MessageMetadata, AuthRequest, AuthInvite, AuthRequestResponse, \
@@ -58,10 +58,11 @@ class AuthInterface(NetworkInterface):
                 )
 
         # Get and solve the security challenge
+        driver = PowDriver()
         challenge = await self._session.raw_get(
             url=f'{target_url}/service/challenge',
         )
-        challenge_solution = solve(
+        challenge_solution = driver.solve(
             nonce=challenge['nonce'],
             difficulty=challenge['difficulty'],
         )
@@ -132,10 +133,11 @@ class AuthInterface(NetworkInterface):
             )
 
         # Get and solve the security challenge
+        driver = PowDriver()
         challenge = await self._session.raw_get(
             url=f'{target_url}/service/challenge',
         )
-        challenge_solution = solve(
+        challenge_solution = driver.solve(
             nonce=challenge['nonce'],
             difficulty=challenge['difficulty'],
         )
