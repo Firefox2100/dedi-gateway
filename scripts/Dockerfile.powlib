@@ -1,0 +1,15 @@
+# Description: Dockerfile for building cffi extension `powlib`
+FROM quay.io/pypa/manylinux2014_x86_64
+
+RUN yum install -y gcc make perl wget zlib-devel
+
+RUN curl -LO https://www.openssl.org/source/openssl-1.1.1w.tar.gz \
+    && tar xzf openssl-1.1.1w.tar.gz \
+    && cd openssl-1.1.1w \
+    && ./config no-shared --prefix=/opt/openssl \
+    && make -j$(nproc) && make install_sw
+
+COPY scripts/powlib.entrypoint.sh /entrypoint.sh
+COPY ./src/dedi_gateway/etc/powlib/pow_solver.c /src/pow_solver.c
+
+ENTRYPOINT ["/entrypoint.sh"]

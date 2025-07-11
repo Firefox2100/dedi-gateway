@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -16,10 +16,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE", "LICENSE.*.txt"]
 dependencies = [
     "apscheduler~=3.11.0",
     "cryptography~=45.0.4",
@@ -64,7 +64,7 @@ Issues = "https://github.com/Firefox2100/dedi-gateway/issues"
 version = {attr = "dedi_gateway.__version__"}
 
 [tool.setuptools.package-data]
-dedi_gateway = ["data/*"]
+dedi_gateway = ["data/**/*"]
 
 [tool.pylint.main]
 clear-cache-post-run = true

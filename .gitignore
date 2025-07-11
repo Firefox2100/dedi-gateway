@@ -196,3 +196,6 @@ cython_debug/
 # Configuration files
 /conf/.env
 /conf/proxy.json
+
+# Include all cffi modules built by this project
+!/src/dedi_gateway/data/bin/*.so
