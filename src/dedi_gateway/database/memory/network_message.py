@@ -1,8 +1,9 @@
 from typing import Mapping, Any
+from dedi_link.etc.enums import AuthMessageStatus
+from dedi_link.model import AuthRequest, AuthInvite
 
-from dedi_gateway.etc.enums import AuthMessageStatus
 from dedi_gateway.etc.errors import NetworkMessageNotFoundException
-from dedi_gateway.model.network_message import NetworkMessageRepository, AuthRequest, AuthInvite
+from dedi_gateway.model.network_message import NetworkMessageRepository
 
 
 class MemoryNetworkMessageRepository(NetworkMessageRepository):

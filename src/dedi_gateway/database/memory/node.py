@@ -1,5 +1,6 @@
-from dedi_gateway.model.node import Node, NodeRepository
+from dedi_link.model import Node
 
+from dedi_gateway.model.node import NodeRepository
 
 
 class MemoryNodeRepository(NodeRepository):

@@ -1,8 +1,9 @@
-from dedi_gateway.etc.enums import ConnectivityType, TransportType
+from dedi_link.etc.enums import ConnectivityType
+from dedi_link.model import MessageMetadata, RouteRequest, RouteResponse, RouteNotification
+
 from dedi_gateway.cache import get_active_cache, get_active_broker
 from dedi_gateway.database import get_active_db
 from dedi_gateway.model.route import Route
-from ..network_message import MessageMetadata, RouteRequest, RouteResponse, RouteNotification
 from .network_interface import NetworkInterface
 
 

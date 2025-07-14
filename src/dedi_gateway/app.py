@@ -4,6 +4,7 @@ from quart import Quart
 from dedi_gateway.etc.consts import SCHEDULER
 from dedi_gateway.etc.utils import scheduler_add_initial_jobs
 from dedi_gateway.model.network_message.registry import NetworkMessageRegistry
+from dedi_gateway.model.network_interface import establish_all_connections
 from dedi_gateway.view import management_blueprint, service_blueprint
 
 
@@ -28,6 +29,16 @@ def create_app() -> Quart:
             SCHEDULER.start()
         else:
             SCHEDULER.resume()
+
+        await establish_all_connections()
+
+    @app.route('/health', methods=['GET'])
+    async def health_check():
+        """
+        Health check endpoint to verify the service is running.
+        :return: A simple message indicating the service is healthy.
+        """
+        return {'status': 'healthy'}
 
     return app
 

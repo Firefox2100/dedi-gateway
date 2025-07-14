@@ -1,6 +1,7 @@
 from pymongo.asynchronous.database import AsyncDatabase
+from dedi_link.model import User
 
-from dedi_gateway.model.user import User, UserRepository
+from dedi_gateway.model.user import UserRepository
 
 
 class MongoUserRepository(UserRepository):

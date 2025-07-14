@@ -1,8 +1,8 @@
 from pymongo.asynchronous.database import AsyncDatabase
+from dedi_link.model import Node, Network
 
 from dedi_gateway.etc.errors import NetworkNotFoundException
-from dedi_gateway.model.network import Network, NetworkRepository
-from dedi_gateway.model.node import Node
+from dedi_gateway.model.network import NetworkRepository
 from .node import MongoNodeRepository
 
 

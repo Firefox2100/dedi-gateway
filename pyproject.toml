@@ -23,6 +23,7 @@ license-files = ["LICENSE", "LICENSE.*.txt"]
 dependencies = [
     "apscheduler~=3.11.0",
     "cryptography~=45.0.4",
+    "dedi-link==0.2.0a2",
     "httpx~=0.28.1",
     "networkx~=3.5",
     "pydantic-settings~=2.10.1",

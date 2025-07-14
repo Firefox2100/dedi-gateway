@@ -3,18 +3,18 @@ import asyncio
 import secrets
 from copy import deepcopy
 from quart import Blueprint, Response, request, websocket, abort
+from dedi_link.etc.enums import MessageType, AuthMessageStatus, ConnectivityType, TransportType
+from dedi_link.model import AuthRequest, AuthInvite, AuthRequestResponse, AuthInviteResponse, \
+    AuthConnect, NetworkMessage, MessageMetadata, Node
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG, LOGGER
-from dedi_gateway.etc.enums import MessageType, AuthMessageStatus, ConnectivityType, TransportType
 from dedi_gateway.etc.powlib import PowDriver
 from dedi_gateway.etc.utils import exception_handler
 from dedi_gateway.cache import get_active_broker, get_active_cache
 from dedi_gateway.database import get_active_db
 from dedi_gateway.kms import get_active_kms
-from dedi_gateway.model.node import Node
 from dedi_gateway.model.route import Route
-from dedi_gateway.model.network_message import AuthRequest, AuthInvite, AuthRequestResponse, \
-    AuthInviteResponse, AuthConnect, NetworkMessage, MessageMetadata
+
 from dedi_gateway.model.network_interface import AuthInterface, process_network_message, \
     authenticate_network_message
 

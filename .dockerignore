@@ -1,0 +1,19 @@
+# Caches and git related
+**/.gitignore
+**/.git
+**/.github
+**/.idea
+**/.vscode
+
+# Runtime, tests and documentation
+**/logs
+**/docs
+**/tests
+**/.pytest_cache
+
+# Build and packaging
+**/requirements*.txt
+**/build
+**/dist
+**/venv
+**/*.egg-info

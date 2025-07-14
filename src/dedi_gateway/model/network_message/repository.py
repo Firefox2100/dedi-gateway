@@ -1,7 +1,6 @@
 from typing import Mapping, Any
-
-from dedi_gateway.etc.enums import AuthMessageStatus
-from .auth_message import AuthRequest, AuthInvite
+from dedi_link.etc.enums import AuthMessageStatus
+from dedi_link.model import AuthRequest, AuthInvite
 
 
 class NetworkMessageRepository:

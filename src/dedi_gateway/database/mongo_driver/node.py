@@ -1,6 +1,7 @@
 from pymongo.asynchronous.database import AsyncDatabase
+from dedi_link.model.node import Node
 
-from dedi_gateway.model.node import Node, NodeRepository
+from dedi_gateway.model.node import NodeRepository
 
 
 class MongoNodeRepository(NodeRepository):

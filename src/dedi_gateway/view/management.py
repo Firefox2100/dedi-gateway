@@ -1,15 +1,14 @@
 from quart import Blueprint, request, abort
+from dedi_link.etc.enums import AuthMessageStatus, MessageType
+from dedi_link.model import AuthRequest, AuthInvite, CustomMessage, Network
 
 from dedi_gateway.etc.consts import LOGGER
 from dedi_gateway.etc.errors import MessageBrokerTimeoutException
-from dedi_gateway.etc.enums import AuthMessageStatus, MessageType
 from dedi_gateway.etc.utils import exception_handler
 from dedi_gateway.cache import get_active_broker
 from dedi_gateway.kms import get_active_kms
 from dedi_gateway.database import get_active_db
-from dedi_gateway.model.network import Network
-from dedi_gateway.model.network_message import AuthRequest, AuthInvite, NetworkMessageRegistry, \
-    MessageMetadata, CustomMessage
+from dedi_gateway.model.network_message import NetworkMessageRegistry
 from dedi_gateway.model.network_interface import NetworkInterface, AuthInterface
 
 management_blueprint = Blueprint('management', __name__)

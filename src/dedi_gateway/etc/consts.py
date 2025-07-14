@@ -17,6 +17,7 @@ class ServiceConfig(BaseSettings):
         env_prefix='DG_',
         env_file=CONFIG_PATH / '.env',
         env_file_encoding='utf-8',
+        secrets_dir='/run/secrets',
     )
 
     application_name: str = Field(

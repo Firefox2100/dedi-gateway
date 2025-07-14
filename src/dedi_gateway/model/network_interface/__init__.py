@@ -1,10 +1,12 @@
 import json
+from dedi_link.model import NetworkMessage, CustomMessage, MessageMetadata
 
 from dedi_gateway.database import get_active_db
 from dedi_gateway.cache import get_active_broker
 from dedi_gateway.kms import get_active_kms
-from ..network_message import NetworkMessage, MessageMetadata, CustomMessage, NetworkMessageRegistry
-from .network_interface import NetworkInterface, NetworkDriver, authenticate_network_message
+from ..network_message import NetworkMessageRegistry
+from .network_interface import NetworkInterface, NetworkDriver, authenticate_network_message, \
+    establish_all_connections
 from .auth_interface import AuthInterface
 from .sync_interface import SyncInterface
 

@@ -7,17 +7,16 @@ from urllib.parse import urlparse
 from typing import AsyncGenerator
 import httpx
 import websockets
+from dedi_link.etc.enums import ConnectivityType, TransportType
+from dedi_link.model import NetworkMessage, AuthConnect, MessageMetadata, Node
 
 from dedi_gateway.etc.consts import LOGGER
-from dedi_gateway.etc.enums import ConnectivityType, TransportType
 from dedi_gateway.etc.errors import NetworkRequestFailedException, NodeNotFoundException, \
     NodeNotApprovedException, NodeNotConnectedException
 from dedi_gateway.cache import get_active_broker, get_active_cache
 from dedi_gateway.database import get_active_db
 from dedi_gateway.kms import get_active_kms
-from dedi_gateway.model.node import Node
 from dedi_gateway.model.route import Route
-from dedi_gateway.model.network_message import NetworkMessage, AuthConnect, MessageMetadata
 
 
 async def authenticate_network_message(message: NetworkMessage,
@@ -499,10 +498,24 @@ class NetworkInterface:
             )
 
         # Both failed, try relaying through a different node
-        # TODO: Implement relay logic
-        raise NotImplementedError(
-            'Relay logic is not implemented yet.',
+        from .route_interface import RouteInterface
+
+        route_interface = RouteInterface()
+        result = await route_interface.request_route(
+            network_id=network_id,
+            target_node=node.node_id,
         )
+
+        if not result:
+            LOGGER.error(
+                'Failed to establish connection to node %s, no route found.',
+                node.node_id,
+            )
+
+            raise NetworkRequestFailedException(
+                message=f'Failed to establish connection to node {node.node_id}, no route found.',
+                status_code=404,
+            )
 
     async def check_node_connectivity(self,
                                       node_url: str,

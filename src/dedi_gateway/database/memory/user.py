@@ -1,4 +1,6 @@
-from dedi_gateway.model.user import User, UserRepository
+from dedi_link.model import User
+
+from dedi_gateway.model.user import UserRepository
 
 
 class MemoryUserRepository(UserRepository):

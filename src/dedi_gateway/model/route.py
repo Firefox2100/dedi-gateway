@@ -1,4 +1,4 @@
-from dedi_gateway.etc.enums import ConnectivityType, TransportType
+from dedi_link.etc.enums import ConnectivityType, TransportType
 
 
 class Route:

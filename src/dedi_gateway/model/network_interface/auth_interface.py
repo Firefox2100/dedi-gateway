@@ -1,6 +1,9 @@
 import asyncio
 from copy import deepcopy
 from uuid import uuid4
+from dedi_link.etc.enums import AuthMessageStatus
+from dedi_link.model import MessageMetadata, AuthRequest, AuthInvite, AuthRequestResponse, \
+    AuthInviteResponse, Node, Network
 
 from dedi_gateway.etc.consts import SERVICE_CONFIG, LOGGER
 from dedi_gateway.etc.errors import JoiningNetworkException, InvitingNodeException, \
@@ -8,12 +11,7 @@ from dedi_gateway.etc.errors import JoiningNetworkException, InvitingNodeExcepti
 from dedi_gateway.etc.powlib import PowDriver
 from dedi_gateway.kms import get_active_kms
 from dedi_gateway.database import get_active_db
-from ..network_message import MessageMetadata, AuthRequest, AuthInvite, AuthRequestResponse, \
-    AuthInviteResponse
-from ..network import Network
-from ..node import Node
 from .network_interface import NetworkInterface
-from ...etc.enums import AuthMessageStatus
 
 
 class AuthInterface(NetworkInterface):
